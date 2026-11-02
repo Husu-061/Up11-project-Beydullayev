@@ -1,12 +1,14 @@
 import os
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, 
-                               QWidget, QHBoxLayout, QScrollArea, QPushButton)  
+                               QWidget, QHBoxLayout, QScrollArea, QPushButton) 
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
 
-
+# ==========================================
+# Функция создания карточки товара
+# ==========================================
 def create_card(product):
     card = QWidget()
     card_layout = QHBoxLayout()
@@ -56,11 +58,14 @@ def create_card(product):
     card.setStyleSheet("background-color: #F9F9F9; border: 1px solid #CCCCCC; border-radius: 8px;")
     return card
 
-
+# ==========================================
+# Главное окно (с ФИО, выходом и ролями)
+# ==========================================
 class MainWindow(QMainWindow):
-    def __init__(self, role_id=None):
+    def __init__(self, role_id=None, user_name="Гость"):
         super().__init__()
-        self.role_id = role_id 
+        self.role_id = role_id
+        self.user_name = user_name
         
         self.setWindowTitle("Мир здорового питания — Каталог")
         self.resize(800, 600)
@@ -69,7 +74,6 @@ class MainWindow(QMainWindow):
         self.db = Database()
         self.setStyleSheet("QMainWindow { background-color: #FFFFFF; } QLabel { font-family: 'Calibri'; color: #000000; }")
         
-        # Вызываем методы настройки (они должны быть внутри класса с отступом!)
         self.setup_ui()
         self.setup_role_interface()
 
@@ -77,7 +81,22 @@ class MainWindow(QMainWindow):
         central = QWidget()
         main_layout = QVBoxLayout()
         
-        # Заголовок и Логотип
+
+        top_layout = QHBoxLayout()
+        
+        self.user_label = QLabel(f"Вы вошли как: {self.user_name}")
+        self.user_label.setStyleSheet("font-weight: bold; color: #555; font-size: 14px;")
+        self.user_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        self.logout_button = QPushButton("Выход")
+        self.logout_button.setStyleSheet("background-color: #D32F2F; color: white; padding: 5px 15px; border-radius: 4px; font-weight: bold;")
+        self.logout_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.logout_button.clicked.connect(self.logout)
+        
+        top_layout.addWidget(self.user_label)
+        top_layout.addWidget(self.logout_button)
+        main_layout.addLayout(top_layout)
+ 
         title_label = QLabel("Мир здорового питания")
         title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin-top: 10px;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -90,17 +109,17 @@ class MainWindow(QMainWindow):
             logo.setPixmap(pixmap_logo.scaledToHeight(80, Qt.TransformationMode.SmoothTransformation))
         main_layout.addWidget(logo)
 
-        # Создаем кнопки
+        # Кнопки ролей
         buttons_layout = QHBoxLayout()
         
         self.order_button = QPushButton("Оформить заказ")
-        self.order_button.setStyleSheet("background-color: #2E7D32; color: white; padding: 8px; border-radius: 4px;")
+        self.order_button.setStyleSheet("background-color: #2E7D32; color: white; padding: 8px; border-radius: 4px; font-weight: bold;")
         
         self.manager_button = QPushButton("Заказы (менеджер)")
-        self.manager_button.setStyleSheet("background-color: #1976D2; color: white; padding: 8px; border-radius: 4px;")
+        self.manager_button.setStyleSheet("background-color: #1976D2; color: white; padding: 8px; border-radius: 4px; font-weight: bold;")
         
         self.admin_button = QPushButton("Админ-панель")
-        self.admin_button.setStyleSheet("background-color: #D32F2F; color: white; padding: 8px; border-radius: 4px;")
+        self.admin_button.setStyleSheet("background-color: #757575; color: white; padding: 8px; border-radius: 4px; font-weight: bold;")
         
         buttons_layout.addWidget(self.order_button)
         buttons_layout.addWidget(self.manager_button)
@@ -128,23 +147,34 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
     def setup_role_interface(self):
-        # Сначала скрываем все
-        self.order_button.hide()
-        self.manager_button.hide()
-        self.admin_button.hide()
+        for btn in [self.order_button, self.manager_button, self.admin_button]:
+            btn.hide()
+            btn.setEnabled(False)
         
-        # Показываем по ролям
-        if self.role_id == 1:
+        # Показываем и разблокируем нужные
+        if self.role_id == 1: # Администратор
             self.admin_button.show()
+            self.admin_button.setEnabled(True)
             self.manager_button.show()
-        elif self.role_id == 2:
+            self.manager_button.setEnabled(True)
+        elif self.role_id == 2: # Менеджер
             self.manager_button.show()
-        elif self.role_id == 3:
+            self.manager_button.setEnabled(True)
+        elif self.role_id == 3: # Клиент
             self.order_button.show()
+            self.order_button.setEnabled(True)
+
+    def logout(self):
+        # Возврат к окну авторизации
+        from login_window import LoginWindow
+        self.login_window = LoginWindow(self.db)
+        self.login_window.show()
+        self.close()
 
     def closeEvent(self, event):
         self.db.close_all()
         event.accept()
+
 
 if __name__ == "__main__":
     from PySide6.QtWidgets import QApplication

@@ -8,7 +8,6 @@ class LoginWindow(QWidget):
         self.user_id = None
         self.role_id = None
         
-        # Задание 2: Интерфейс
         self.setWindowTitle("Авторизация")
         self.resize(300, 200)
         
@@ -32,7 +31,6 @@ class LoginWindow(QWidget):
         """)
 
     def check_login(self):
-        # Задание 3: Проверка логина
         login = self.login_input.text().strip()
         
         if not login:
@@ -46,7 +44,8 @@ class LoginWindow(QWidget):
             
         try:
             cur = conn.cursor()
-            query = "SELECT user_id, role_id FROM users WHERE login = %s"
+            # ДОМАШНЕЕ ЗАДАНИЕ: Запрашиваем ФИО (last_name, first_name)
+            query = "SELECT user_id, role_id, last_name, first_name FROM users WHERE login = %s"
             cur.execute(query, (login,))
             result = cur.fetchone()
             cur.close()
@@ -62,14 +61,13 @@ class LoginWindow(QWidget):
             self.user_id = result[0]
             self.role_id = result[1]
             
-            # ==========================================
-            # ЗАДАНИЕ 4: Переход к главному окну
-            # ==========================================
+            # Формируем строку с ФИО
+            user_name = f"{result[2]} {result[3]}"
+            
             from main import MainWindow
             
-            # Создаем и показываем главное окно, передавая ему role_id
-            self.main_window = MainWindow(role_id=self.role_id)
+            # Передаем role_id и user_name в главное окно
+            self.main_window = MainWindow(role_id=self.role_id, user_name=user_name)
             self.main_window.show()
             
-            # Закрываем окно входа
             self.close()
