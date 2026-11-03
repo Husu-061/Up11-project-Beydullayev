@@ -6,6 +6,9 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
 
+# ==========================================
+# Функции расчета
+# ==========================================
 def calculate_discount(old_price, new_price):
     if old_price == 0: return 0
     return (old_price - new_price) / old_price * 100
@@ -21,11 +24,17 @@ def calculate_price(product_id, old_price, cursor):
     orders_count = result[0] if result else 0
     return float(old_price) * 0.75 if orders_count == 0 else float(old_price)
 
+# ==========================================
+# Создание карточки (ДЗ: перечеркнутая цена, проценты, анимация)
+# ==========================================
 def create_card(product, discount, new_price): 
     card = QWidget()
+    card.setObjectName("productCard") # ID для анимации
+    
     card_layout = QHBoxLayout()
     card_layout.setContentsMargins(10, 10, 10, 10)
     
+    # 1. КАРТИНКА
     img_label = QLabel()
     img_label.setFixedSize(100, 100)
     img_label.setStyleSheet("border: 1px solid #ddd; background-color: #fff;")
@@ -45,6 +54,7 @@ def create_card(product, discount, new_price):
         
     card_layout.addWidget(img_label)
     
+    # 2. ТЕКСТ
     text_layout = QVBoxLayout()
     name_label = QLabel(f"Наименование: {product[2]}")
     name_label.setStyleSheet("font-weight: bold; font-size: 16px; border: none;")
@@ -57,18 +67,22 @@ def create_card(product, discount, new_price):
     text_layout.addWidget(stock_label)
     card_layout.addLayout(text_layout)
     
+    # 3. ЦЕНЫ И СКИДКА
     old_price = float(product[3])
     price_box = QVBoxLayout()
     price_box.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
     
+    # Перечеркнутая старая цена (красная)
     old_price_label = QLabel(f"<s>{old_price:.2f} ₽</s>")
     old_price_label.setStyleSheet("color: red; border: none;")
     old_price_label.setAlignment(Qt.AlignmentFlag.AlignRight)
     
+    # Итоговая новая цена (черная, жирная)
     new_price_label = QLabel(f"{new_price:.2f} ₽")
     new_price_label.setStyleSheet("color: black; font-weight: bold; font-size: 20px; border: none;")
     new_price_label.setAlignment(Qt.AlignmentFlag.AlignRight)
     
+    # Процент скидки (ДЗ)
     discount_label = QLabel(f"-{int(discount)}%")
     discount_label.setAlignment(Qt.AlignmentFlag.AlignRight)
     if discount > 30:
@@ -89,9 +103,25 @@ def create_card(product, discount, new_price):
     card_layout.addLayout(price_box)
     
     card.setLayout(card_layout)
-    card.setStyleSheet("background-color: #F9F9F9; border: 1px solid #CCCCCC; border-radius: 8px;")
+    
+    # СТИЛИ КАРТОЧКИ И АНИМАЦИЯ НАВЕДЕНИЯ (ДЗ)
+    card.setStyleSheet("""
+        #productCard {
+            background-color: #F9F9F9; 
+            border: 1px solid #CCCCCC; 
+            border-radius: 8px;
+        }
+        #productCard:hover {
+            background-color: #FFFFFF;
+            border: 2px solid #2E8B57;
+        }
+    """)
+    
     return card
 
+# ==========================================
+# Главное окно
+# ==========================================
 class MainWindow(QMainWindow):
     def __init__(self, role_id=None, full_name=None, role_name=None, db=None): 
         super().__init__()
@@ -100,7 +130,7 @@ class MainWindow(QMainWindow):
         self.role_name = role_name
         
         self.setWindowTitle("Мир здорового питания — Каталог")
-        self.resize(800, 600)
+        self.resize(850, 650)
         self.setWindowIcon(QIcon("resources/icon.ico"))
         
         self.db = db if db else Database() 
@@ -114,6 +144,7 @@ class MainWindow(QMainWindow):
         central = QWidget()
         main_layout = QVBoxLayout()
         
+        # ШАПКА
         header = QHBoxLayout()
         logo_header = QLabel()
         if os.path.exists("resources/logo.png"):
@@ -142,6 +173,7 @@ class MainWindow(QMainWindow):
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(title_label)
         
+        # КНОПКИ РОЛЕЙ
         buttons_layout = QHBoxLayout()
         self.order_button = QPushButton("Оформить заказ")
         self.order_button.setStyleSheet("background-color: #2E7D32; color: white; padding: 8px; border-radius: 4px;")
@@ -154,11 +186,13 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.admin_button)
         main_layout.addLayout(buttons_layout)
 
+        # ФИЛЬТР
         self.filter_checkbox = QCheckBox("Показывать только товары со скидкой > 15%")
         self.filter_checkbox.setStyleSheet("font-size: 14px; margin: 10px; font-weight: bold;")
         self.filter_checkbox.clicked.connect(self.load_products) 
         main_layout.addWidget(self.filter_checkbox)
 
+        # ОБЛАСТЬ ПРОКРУТКИ
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setStyleSheet("border: none;")
@@ -173,7 +207,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
     def load_products(self):
-        # Очистка
+        # Замораживаем экран, чтобы карточки не мигали при загрузке
+        self.scroll_area.setUpdatesEnabled(False)
+        
         while self.scroll_layout.count():
             item = self.scroll_layout.takeAt(0)
             if item is not None:
@@ -183,7 +219,7 @@ class MainWindow(QMainWindow):
                 
         conn = self.db.get_connection()
         if not conn: 
-            print("Нет соединения при загрузке товаров")
+            self.scroll_area.setUpdatesEnabled(True)
             return
             
         cursor = conn.cursor()
@@ -199,14 +235,19 @@ class MainWindow(QMainWindow):
         cursor.close()
         self.db.release_connection(conn)
         
+        # ДЗ: Сортировка по размеру скидки (от большего к меньшему)
         products_data.sort(key=lambda x: x[1], reverse=True)
         
+        # ДЗ: Фильтр
         if self.filter_checkbox.isChecked():
             products_data = [item for item in products_data if item[1] > 15]
             
         for product, discount, new_price in products_data:
             card = create_card(product, discount, new_price)
             self.scroll_layout.addWidget(card)
+            
+        # Включаем экран обратно, карточки появляются все разом
+        self.scroll_area.setUpdatesEnabled(True)
 
     def setup_role_interface(self):
         for btn in [self.order_button, self.manager_button, self.admin_button, self.settings_button]:
