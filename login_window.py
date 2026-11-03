@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton)
+from database import Database
 
 class LoginWindow(QWidget):
     def __init__(self, db):
@@ -34,36 +35,23 @@ class LoginWindow(QWidget):
             print("Ошибка: Введите логин!")
             return
             
-        conn = self.db.get_connection()
-        if not conn:
-            print("Ошибка: Нет подключения к БД!")
-            return
-            
-        try:
-            cur = conn.cursor()
-            query = """
-                SELECT u.user_id, u.role_id, u.last_name, u.first_name, u.middle_name, r.name 
-                FROM users u 
-                JOIN roles r ON u.role_id = r.role_id 
-                WHERE u.login = %s
-            """
-            cur.execute(query, (login,))
-            result = cur.fetchone()
-            cur.close()
-        except Exception as e:
-            print(f"Ошибка БД: {e}")
-            result = None
-        finally:
-            self.db.release_connection(conn)
-            
-        if result is None:
+        query = """
+            SELECT u.user_id, u.role_id, u.last_name, u.first_name, u.middle_name, r.name 
+            FROM users u 
+            JOIN roles r ON u.role_id = r.role_id 
+            WHERE u.login = %s
+        """
+        result = self.db.execute_query(query, (login,))
+        
+        if not result:
             print("Ошибка: Пользователь не найден!")
         else:
-            self.user_id = result[0]
-            self.role_id = result[1]
+            user_data = result[0]
+            self.user_id = user_data[0]
+            self.role_id = user_data[1]
             
-            last_name, first_name, middle_name = result[2], result[3], result[4]
-            role_name = result[5]
+            last_name, first_name, middle_name = user_data[2], user_data[3], user_data[4]
+            role_name = user_data[5]
             
             if middle_name:
                 self.full_name = f"{last_name} {first_name} {middle_name}"
