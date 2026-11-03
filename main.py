@@ -1,7 +1,8 @@
 import os
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, 
-                               QWidget, QHBoxLayout, QScrollArea, QPushButton, QCheckBox, QComboBox) 
+                               QWidget, QHBoxLayout, QScrollArea, QPushButton, 
+                               QCheckBox, QComboBox, QLineEdit) # <-- Добавили QLineEdit
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
@@ -16,7 +17,6 @@ def calculate_price(product_id, old_price, cursor):
     try:
         cursor.execute("SELECT name FROM products WHERE product_id = %s", (product_id,))
         name_res = cursor.fetchone()
-        product_name = name_res[0] if name_res else "Неизвестный товар"
         
         query = """
             SELECT COUNT(*) FROM order_items oi
@@ -58,11 +58,8 @@ def create_card(product, discount, new_price):
     card_layout.addWidget(img_label)
     
     text_layout = QVBoxLayout()
-    
-    # ЯВНО УКАЗЫВАЕМ ЧЕРНЫЙ ЦВЕТ ТЕКСТА (color: black;)
     name_label = QLabel(f"Наименование: {product[2]}")
     name_label.setStyleSheet("color: black; font-weight: bold; font-size: 16px; border: none; background: transparent;")
-    
     category_label = QLabel(f"Категория: {product[1]}")
     category_label.setStyleSheet("color: black; border: none; background: transparent;")
     
@@ -88,7 +85,6 @@ def create_card(product, discount, new_price):
     old_price_label.setAlignment(Qt.AlignmentFlag.AlignRight)
     
     new_price_label = QLabel(f"{new_price:.2f} ₽")
-    # ЯВНО УКАЗЫВАЕМ ЧЕРНЫЙ ЦВЕТ ДЛЯ ЦЕНЫ
     new_price_label.setStyleSheet("color: black; font-weight: bold; font-size: 20px; border: none; background: transparent;")
     new_price_label.setAlignment(Qt.AlignmentFlag.AlignRight)
     
@@ -111,7 +107,6 @@ def create_card(product, discount, new_price):
     price_box.addWidget(discount_label)
     
     order_btn = QPushButton("Оформить заказ")
-    # ЯВНО УКАЗЫВАЕМ СТИЛЬ ДЛЯ АКТИВНОЙ И НЕАКТИВНОЙ КНОПКИ
     if total_quantity == 0:
         order_btn.setEnabled(False)
         order_btn.setText("Нет в наличии")
@@ -140,7 +135,7 @@ class MainWindow(QMainWindow):
         
         self.setWindowTitle("Мир здорового питания — Каталог")
         self.resize(850, 650)
-        self.setWindowIcon(QIcon("resources/icon.ico")) # ДЗ: Иконка
+        self.setWindowIcon(QIcon("resources/icon.ico"))
         
         self.setup_ui()
         self.setup_role_interface()
@@ -151,7 +146,6 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout()
         
         header_layout = QHBoxLayout()
-        
         logo_header = QLabel()
         if os.path.exists("resources/logo.png"):
             pixmap_logo = QPixmap("resources/logo.png")
@@ -164,7 +158,6 @@ class MainWindow(QMainWindow):
         self.name_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         header_layout.addWidget(self.name_label)
         
-        # ДЗ: Кнопка переключения темы
         self.theme_button = QPushButton("Тёмная тема")
         self.theme_button.clicked.connect(self.toggle_theme)
         header_layout.addWidget(self.theme_button)
@@ -177,7 +170,7 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(self.logout_button)
         
         header_widget = QWidget()
-        header_widget.setObjectName("headerWidget") # Привязка к стилю QSS
+        header_widget.setObjectName("headerWidget")
         header_widget.setLayout(header_layout)
         main_layout.addWidget(header_widget)
 
@@ -200,22 +193,43 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.admin_button)
         main_layout.addLayout(buttons_layout)
 
+        # ==========================================
+        # ЗАДАНИЯ 2, 3, 4: Панель поиска, фильтра и сортировки
+        # ==========================================
         filters_layout = QHBoxLayout()
-        self.filter_checkbox = QCheckBox("Только со скидкой > 15%")
-        self.filter_checkbox.clicked.connect(self.load_products) 
-        filters_layout.addWidget(self.filter_checkbox)
-
-        self.in_stock_checkbox = QCheckBox("Только в наличии")
-        self.in_stock_checkbox.clicked.connect(self.load_products)
-        filters_layout.addWidget(self.in_stock_checkbox)
-
-        # Подготовка к следующей паре (QComboBox)
+        
+        # ЗАДАНИЕ 4.1: Поиск
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Поиск...")
+        self.search_input.textChanged.connect(self.load_products)
+        filters_layout.addWidget(self.search_input)
+        
+        # ЗАДАНИЕ 3.1: Фильтр по категориям
+        self.filter_combo = QComboBox()
+        self.filter_combo.addItem("Все категории")
+        categories = self.db.get_categories()
+        self.filter_combo.addItems(categories)
+        self.filter_combo.currentIndexChanged.connect(self.load_products)
+        filters_layout.addWidget(self.filter_combo)
+        
+        # ЗАДАНИЕ 2.1: Сортировка
         self.sort_combo = QComboBox()
-        self.sort_combo.addItems(["Сортировка: по скидке", "Цена (по возрастанию)", "Цена (по убыванию)", "Сначала в наличии"])
+        self.sort_combo.addItems(["По возрастанию", "По убыванию", "По скидке", "Сначала в наличии"])
         self.sort_combo.currentIndexChanged.connect(self.load_products)
         filters_layout.addWidget(self.sort_combo)
         
         main_layout.addLayout(filters_layout)
+
+        # Чекбоксы (из прошлых ДЗ)
+        checkboxes_layout = QHBoxLayout()
+        self.filter_checkbox = QCheckBox("Только со скидкой > 15%")
+        self.filter_checkbox.clicked.connect(self.load_products) 
+        checkboxes_layout.addWidget(self.filter_checkbox)
+
+        self.in_stock_checkbox = QCheckBox("Только в наличии")
+        self.in_stock_checkbox.clicked.connect(self.load_products)
+        checkboxes_layout.addWidget(self.in_stock_checkbox)
+        main_layout.addLayout(checkboxes_layout)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -232,9 +246,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
     def toggle_theme(self):
-        # ДЗ (Дополнительно): Переключение тем
         app = QApplication.instance()
-        if isinstance(app, QApplication): 
+        if isinstance(app, QApplication):
             if self.theme_button.text() == "Тёмная тема":
                 with open("style_dark.qss", "r", encoding="utf-8") as f:
                     app.setStyleSheet(f.read())
@@ -246,6 +259,7 @@ class MainWindow(QMainWindow):
 
     def load_products(self):
         self.scroll_area.setUpdatesEnabled(False)
+        
         while self.scroll_layout.count():
             item = self.scroll_layout.takeAt(0)
             if item is not None:
@@ -253,15 +267,43 @@ class MainWindow(QMainWindow):
                 if widget is not None:
                     widget.deleteLater()
                 
+        # ЗАДАНИЕ 5.1: Формирование SQL-запроса
+        search_text = f"%{self.search_input.text()}%"
+        category = self.filter_combo.currentText()
+        sort_by = self.sort_combo.currentText()
+        
+        # Базовый запрос
+        query = """
+            SELECT p.product_id, c.name, p.name, p.price, p.image_path,
+                   COALESCE(SUM(si.quantity), 0) AS total_quantity
+            FROM products p
+            JOIN categories c ON p.category_id = c.category_id
+            LEFT JOIN stock_items si ON p.product_id = si.product_id
+            WHERE p.name ILIKE %s
+            AND (c.name = %s OR %s = 'Все категории')
+            GROUP BY p.product_id, c.name, p.name, p.price, p.image_path
+        """
+        
+        # Добавляем сортировку
+        if sort_by == "По возрастанию":
+            query += " ORDER BY p.price ASC"
+        elif sort_by == "По убыванию":
+            query += " ORDER BY p.price DESC"
+        elif sort_by == "По скидке":
+            query += " ORDER BY p.product_id ASC" # Скидку считаем в Python, поэтому пока сортируем по ID
+        else:
+            query += " ORDER BY p.product_id ASC"
+            
         conn = self.db.get_connection()
         if not conn: 
             self.scroll_area.setUpdatesEnabled(True)
             return
             
         cursor = conn.cursor()
-        products = self.db.get_products()
-        products_data = []
+        cursor.execute(query, (search_text, category, category))
+        products = cursor.fetchall()
         
+        products_data = []
         for p in products:
             old_price = float(p[3])
             new_price, disc_size = calculate_price(p[0], old_price, cursor)
@@ -271,19 +313,15 @@ class MainWindow(QMainWindow):
         cursor.close()
         self.db.release_connection(conn)
         
-        sort_idx = self.sort_combo.currentIndex()
-        if sort_idx == 1:
-            products_data.sort(key=lambda x: x[2])
-        elif sort_idx == 2:
-            products_data.sort(key=lambda x: x[2], reverse=True)
-        elif sort_idx == 3:
-            products_data.sort(key=lambda x: x[0][5] == 0) 
-        else:
+        # Вторичная сортировка (по скидке, если выбрано)
+        if sort_by == "По скидке":
             products_data.sort(key=lambda x: x[1], reverse=True)
+        elif sort_by == "Сначала в наличии":
+            products_data.sort(key=lambda x: x[0][5] == 0)
             
+        # Дополнительные фильтры
         if self.filter_checkbox.isChecked():
             products_data = [item for item in products_data if item[1] > 15]
-            
         if self.in_stock_checkbox.isChecked():
             products_data = [item for item in products_data if item[0][5] > 0]
             
@@ -323,13 +361,11 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    
-    # ЗАГРУЗКА СТИЛЕЙ ИЗ QSS ФАЙЛА ПРИ СТАРТЕ
     try:
         with open("style_light.qss", "r", encoding="utf-8") as f:
             app.setStyleSheet(f.read())
-    except Exception as e:
-        print(f"Не удалось загрузить стили: {e}")
+    except Exception:
+        pass
 
     db = Database()
     from login_window import LoginWindow

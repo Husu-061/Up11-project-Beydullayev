@@ -2,12 +2,7 @@ import logging
 import psycopg2
 from psycopg2 import pool
 
-# ДЗ: Логирование ошибок в файл
-logging.basicConfig(
-    filename='app_errors.log',
-    level=logging.ERROR,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(filename='app_errors.log', level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Database:
     def __init__(self):
@@ -24,12 +19,10 @@ class Database:
             )
             print("Пул соединений успешно создан.")
         except Exception as e:
-            print(f"Ошибка БД: {e}")
             logging.error(f"Ошибка создания пула: {e}")
 
     def get_connection(self):
-        if self.connection_pool is None:
-            return None
+        if self.connection_pool is None: return None
         return self.connection_pool.getconn()
 
     def release_connection(self, conn):
@@ -39,7 +32,6 @@ class Database:
     def close_all(self):
         if self.connection_pool:
             self.connection_pool.closeall()
-            print("Все соединения закрыты.")
 
     def execute_query(self, sql, params=None):
         conn = self.get_connection()
@@ -51,37 +43,14 @@ class Database:
             cur.close()
             return result
         except Exception as e:
-            logging.error(f"Ошибка выполнения SELECT: {e}")
-            print(f"Ошибка SELECT: {e}")
+            logging.error(f"Ошибка SELECT: {e}")
+            print(f"Ошибка: {e}")
             return []
         finally:
             self.release_connection(conn)
 
-    def execute_update(self, sql, params=None):
-        conn = self.get_connection()
-        if not conn: return False
-        try:
-            cur = conn.cursor()
-            cur.execute(sql, params or ())
-            conn.commit()
-            cur.close()
-            return True
-        except Exception as e:
-            logging.error(f"Ошибка выполнения UPDATE/INSERT: {e}")
-            conn.rollback()
-            return False
-        finally:
-            self.release_connection(conn)
-
-    def get_products(self):
-        # ЗАДАНИЕ 1 и 2: Правильный запрос с подсчетом остатков из stock_items
-        query = """
-            SELECT p.product_id, c.name, p.name, p.price, p.image_path,
-                   COALESCE(SUM(si.quantity), 0) AS total_quantity
-            FROM products p
-            JOIN categories c ON p.category_id = c.category_id
-            LEFT JOIN stock_items si ON p.product_id = si.product_id
-            GROUP BY p.product_id, c.name, p.name, p.price, p.image_path
-            ORDER BY p.product_id
-        """
-        return self.execute_query(query)
+    # ЗАДАНИЕ 1.1: Получение списка категорий для фильтра
+    def get_categories(self):
+        query = "SELECT DISTINCT name FROM categories ORDER BY name"
+        result = self.execute_query(query)
+        return [row[0] for row in result] if result else []
