@@ -39,17 +39,16 @@ def create_card(product, discount, new_price):
     card_layout = QHBoxLayout()
     card_layout.setContentsMargins(10, 10, 10, 10)
     
-    # 0-id, 1-cat, 2-name, 3-price, 4-image, 5-total_quantity
     image_path = product[4] 
     total_quantity = product[5] 
     
-    # Кэш картинок
     if image_path not in image_cache:
         if image_path is not None and os.path.exists(f"Images/{image_path}"):
             image_cache[image_path] = QPixmap(f"Images/{image_path}")
         else:
             image_cache[image_path] = QPixmap("resources/picture.png")
     
+    # ЗАДАНИЕ 5: Логотип/картинка не искажены
     img_label = QLabel()
     img_label.setFixedSize(100, 100)
     img_label.setStyleSheet("border: 1px solid #ddd; background-color: #fff;")
@@ -61,18 +60,17 @@ def create_card(product, discount, new_price):
     
     text_layout = QVBoxLayout()
     name_label = QLabel(f"Наименование: {product[2]}")
-    name_label.setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent;")
+    name_label.setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; font-family: Calibri;")
     category_label = QLabel(f"Категория: {product[1]}")
-    category_label.setStyleSheet("border: none; background: transparent;")
+    category_label.setStyleSheet("border: none; background: transparent; font-family: Calibri;")
     
-    # ДЗ 1: Текст "Нет в наличии"
     stock_label = QLabel()
     if total_quantity == 0:
         stock_label.setText("Нет в наличии")
-        stock_label.setStyleSheet("color: red; font-weight: bold; border: none; background: transparent;")
+        stock_label.setStyleSheet("color: red; font-weight: bold; border: none; background: transparent; font-family: Calibri;")
     else:
         stock_label.setText(f"В наличии: {total_quantity} шт.")
-        stock_label.setStyleSheet("border: none; background: transparent;")
+        stock_label.setStyleSheet("border: none; background: transparent; font-family: Calibri;")
     
     text_layout.addWidget(name_label)
     text_layout.addWidget(category_label)
@@ -84,19 +82,19 @@ def create_card(product, discount, new_price):
     price_box.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
     
     old_price_label = QLabel(f"<s>{old_price:.2f} ₽</s>")
-    old_price_label.setStyleSheet("color: red; border: none; background: transparent;")
+    old_price_label.setStyleSheet("color: red; border: none; background: transparent; font-family: Calibri;")
     old_price_label.setAlignment(Qt.AlignmentFlag.AlignRight)
     
     new_price_label = QLabel(f"{new_price:.2f} ₽")
-    new_price_label.setStyleSheet("color: black; font-weight: bold; font-size: 20px; border: none; background: transparent;")
+    new_price_label.setStyleSheet("color: black; font-weight: bold; font-size: 20px; border: none; background: transparent; font-family: Calibri;")
     new_price_label.setAlignment(Qt.AlignmentFlag.AlignRight)
     
     discount_label = QLabel(f"-{int(discount)}%")
     discount_label.setAlignment(Qt.AlignmentFlag.AlignRight)
     if discount > 30:
-        discount_label.setStyleSheet("color: #E65100; font-weight: bold; border: none; background: transparent;")
+        discount_label.setStyleSheet("color: #E65100; font-weight: bold; border: none; background: transparent; font-family: Calibri;")
     elif discount > 15:
-        discount_label.setStyleSheet("color: #2E8B57; font-weight: bold; border: none; background: transparent;")
+        discount_label.setStyleSheet("color: #2E8B57; font-weight: bold; border: none; background: transparent; font-family: Calibri;")
     else:
         discount_label.hide()
 
@@ -109,30 +107,23 @@ def create_card(product, discount, new_price):
     price_box.addWidget(new_price_label)
     price_box.addWidget(discount_label)
     
-    # ДЗ 1: Кнопка "Оформить заказ" и её блокировка
     order_btn = QPushButton("Оформить заказ")
-    order_btn.setStyleSheet("background-color: #2E7D32; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px;")
+    # ЗАДАНИЕ 4: Кнопка бирюзовая
+    order_btn.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px; font-family: Calibri; }")
     
     if total_quantity == 0:
-        order_btn.setEnabled(False) # Блокируем кнопку
+        order_btn.setEnabled(False)
         order_btn.setText("Нет в наличии")
-        order_btn.setStyleSheet("background-color: #999999; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px;")
+        order_btn.setStyleSheet("QPushButton { background-color: #999999; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px; font-family: Calibri; }")
         
     price_box.addWidget(order_btn)
-    
     card_layout.addLayout(price_box)
-    
     card.setLayout(card_layout)
     
     if total_quantity == 0:
-        card.setStyleSheet("""
-            #productCard { background-color: #ADD8E6; border: 1px solid #999999; border-radius: 8px; }
-        """)
+        card.setStyleSheet("#productCard { background-color: #ADD8E6; border: 1px solid #999999; border-radius: 8px; }")
     else:
-        card.setStyleSheet("""
-            #productCard { background-color: #F9F9F9; border: 1px solid #CCCCCC; border-radius: 8px; }
-            #productCard:hover { background-color: #FFFFFF; border: 2px solid #2E8B57; }
-        """)
+        card.setStyleSheet("#productCard { background-color: #F9F9F9; border: 1px solid #CCCCCC; border-radius: 8px; } #productCard:hover { background-color: #FFFFFF; border: 2px solid #70B2AF; }")
     
     return card
 
@@ -147,7 +138,17 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Мир здорового питания — Каталог")
         self.resize(850, 650)
         self.setWindowIcon(QIcon("resources/icon.ico"))
-        self.setStyleSheet("QMainWindow { background-color: #FFFFFF; } QLabel { font-family: 'Calibri'; color: #000000; }")
+        
+        # ЗАДАНИЕ 2 и 3: Основной фон #FFFFFF и шрифт Calibri
+        self.setStyleSheet("""
+            QMainWindow { 
+                background-color: #FFFFFF; 
+            }
+            QLabel { 
+                font-family: Calibri; 
+                color: #000000; 
+            }
+        """)
         
         self.setup_ui()
         self.setup_role_interface()
@@ -157,73 +158,74 @@ class MainWindow(QMainWindow):
         central = QWidget()
         main_layout = QVBoxLayout()
         
-        header = QHBoxLayout()
+        # ЗАДАНИЕ 3: Дополнительный фон для header (#D2F6E7)
+        header_layout = QHBoxLayout()
+        
         logo_header = QLabel()
         if os.path.exists("resources/logo.png"):
             pixmap_logo = QPixmap("resources/logo.png")
             if not pixmap_logo.isNull():
+                # Не искажаем пропорции
                 logo_header.setPixmap(pixmap_logo.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation))
-        header.addWidget(logo_header)
-        header.addStretch()
+        header_layout.addWidget(logo_header)
+        header_layout.addStretch()
         
         self.name_label = QLabel(f"ФИО: {self.full_name} ({self.role_name})")
-        self.name_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        header.addWidget(self.name_label)
+        self.name_label.setStyleSheet("font-weight: bold; font-size: 14px; font-family: Calibri;")
+        header_layout.addWidget(self.name_label)
         
         self.settings_button = QPushButton("Настройки")
-        self.settings_button.setStyleSheet("background-color: #1976D2; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold;")
-        header.addWidget(self.settings_button)
+        self.settings_button.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-family: Calibri; }")
+        header_layout.addWidget(self.settings_button)
         
         self.logout_button = QPushButton("Выход")
-        self.logout_button.setStyleSheet("background-color: #D32F2F; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold;")
+        self.logout_button.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-family: Calibri; }")
         self.logout_button.clicked.connect(self.logout)
-        header.addWidget(self.logout_button)
-        main_layout.addLayout(header)
+        header_layout.addWidget(self.logout_button)
+        
+        # Оборачиваем QHBoxLayout в QWidget для фона
+        header_widget = QWidget()
+        header_widget.setLayout(header_layout)
+        header_widget.setStyleSheet("background-color: #D2F6E7;")
+        main_layout.addWidget(header_widget)
 
         title_label = QLabel("Мир здорового питания")
-        title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin-top: 10px;")
+        title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin-top: 10px; font-family: Calibri;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(title_label)
 
         version_label = QLabel("Версия приложения: v1.0")
-        version_label.setStyleSheet("color: #888; font-size: 12px; margin-bottom: 10px;")
+        version_label.setStyleSheet("color: #888; font-size: 12px; margin-bottom: 10px; font-family: Calibri;")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(version_label)
         
         buttons_layout = QHBoxLayout()
         self.order_button = QPushButton("Оформить заказ")
-        self.order_button.setStyleSheet("background-color: #2E7D32; color: white; padding: 8px; border-radius: 4px;")
+        self.order_button.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 8px; border-radius: 4px; font-family: Calibri; }")
         self.manager_button = QPushButton("Заказы (менеджер)")
-        self.manager_button.setStyleSheet("background-color: #1976D2; color: white; padding: 8px; border-radius: 4px;")
+        self.manager_button.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 8px; border-radius: 4px; font-family: Calibri; }")
         self.admin_button = QPushButton("Админ-панель")
-        self.admin_button.setStyleSheet("background-color: #757575; color: white; padding: 8px; border-radius: 4px;")
+        self.admin_button.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 8px; border-radius: 4px; font-family: Calibri; }")
+        
         buttons_layout.addWidget(self.order_button)
         buttons_layout.addWidget(self.manager_button)
         buttons_layout.addWidget(self.admin_button)
         main_layout.addLayout(buttons_layout)
 
-        # ДЗ 3: Фильтры и сортировки
         filters_layout = QHBoxLayout()
-        
         self.filter_checkbox = QCheckBox("Только со скидкой > 15%")
-        self.filter_checkbox.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.filter_checkbox.setStyleSheet("font-size: 14px; font-weight: bold; font-family: Calibri;")
         self.filter_checkbox.clicked.connect(self.load_products) 
         filters_layout.addWidget(self.filter_checkbox)
 
-        # Новый фильтр "Только в наличии"
         self.in_stock_checkbox = QCheckBox("Только в наличии")
-        self.in_stock_checkbox.setStyleSheet("font-size: 14px; font-weight: bold; margin-left: 10px;")
+        self.in_stock_checkbox.setStyleSheet("font-size: 14px; font-weight: bold; margin-left: 10px; font-family: Calibri;")
         self.in_stock_checkbox.clicked.connect(self.load_products)
         filters_layout.addWidget(self.in_stock_checkbox)
 
         self.sort_combo = QComboBox()
-        # ДЗ 3: Новая сортировка
-        self.sort_combo.addItems([
-            "Сортировка: по скидке", 
-            "Цена (по возрастанию)", 
-            "Цена (по убыванию)",
-            "Сначала в наличии" # <--- Новый пункт
-        ])
+        self.sort_combo.setStyleSheet("font-family: Calibri; font-size: 14px;")
+        self.sort_combo.addItems(["Сортировка: по скидке", "Цена (по возрастанию)", "Цена (по убыванию)", "Сначала в наличии"])
         self.sort_combo.currentIndexChanged.connect(self.load_products)
         filters_layout.addWidget(self.sort_combo)
         
@@ -270,23 +272,19 @@ class MainWindow(QMainWindow):
         cursor.close()
         self.db.release_connection(conn)
         
-        # ДЗ 3: Обновленная логика сортировки
         sort_idx = self.sort_combo.currentIndex()
         if sort_idx == 1:
             products_data.sort(key=lambda x: x[2])
         elif sort_idx == 2:
             products_data.sort(key=lambda x: x[2], reverse=True)
         elif sort_idx == 3:
-            # Сначала в наличии (у кого quantity > 0), потом нет
             products_data.sort(key=lambda x: x[0][5] == 0) 
         else:
             products_data.sort(key=lambda x: x[1], reverse=True)
             
-        # Фильтр по скидке
         if self.filter_checkbox.isChecked():
             products_data = [item for item in products_data if item[1] > 15]
             
-        # ДЗ 3: Фильтр "Только в наличии"
         if self.in_stock_checkbox.isChecked():
             products_data = [item for item in products_data if item[0][5] > 0]
             

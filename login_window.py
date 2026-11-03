@@ -21,10 +21,28 @@ class LoginWindow(QWidget):
         layout.addWidget(self.btn_login)
         
         self.setLayout(layout)
+        
+        # ЗАДАНИЕ 4.1: Кнопка бирюзовая #70B2AF и шрифт Calibri
         self.setStyleSheet("""
-            QWidget { background-color: #FFFFFF; font-family: 'Calibri'; font-size: 14px; }
-            QLineEdit { padding: 5px; border: 1px solid #CCC; border-radius: 4px; }
-            QPushButton { background-color: #2E7D32; color: white; padding: 8px; border-radius: 4px; font-weight: bold; }
+            QWidget { 
+                background-color: #FFFFFF; 
+                font-family: Calibri; 
+                font-size: 14px; 
+            }
+            QLineEdit { 
+                padding: 5px; 
+                border: 1px solid #CCC; 
+                border-radius: 4px; 
+                font-family: Calibri;
+            }
+            QPushButton { 
+                background-color: #70B2AF; 
+                color: white; 
+                padding: 8px; 
+                border-radius: 4px; 
+                font-weight: bold; 
+                font-family: Calibri;
+            }
         """)
 
     def check_login(self):
