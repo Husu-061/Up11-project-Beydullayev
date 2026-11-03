@@ -29,7 +29,7 @@ def calculate_price(product_id, old_price, cursor):
         
         final_price = float(old_price) * 0.75 if orders_count == 0 else float(old_price)
         return final_price, float(old_price) - final_price
-    except Exception as e:
+    except Exception:
         return float(old_price), 0.0
 
 def create_card(product, discount, new_price): 
@@ -39,7 +39,6 @@ def create_card(product, discount, new_price):
     card_layout = QHBoxLayout()
     card_layout.setContentsMargins(10, 10, 10, 10)
     
-    # ВНИМАНИЕ НА ИНДЕКСЫ! 
     # 0-id, 1-cat, 2-name, 3-price, 4-image, 5-total_quantity
     image_path = product[4] 
     total_quantity = product[5] 
@@ -66,9 +65,14 @@ def create_card(product, discount, new_price):
     category_label = QLabel(f"Категория: {product[1]}")
     category_label.setStyleSheet("border: none; background: transparent;")
     
-    # Выводим реальное количество!
-    stock_label = QLabel(f"В наличии: {total_quantity} шт.")
-    stock_label.setStyleSheet("border: none; background: transparent;")
+    # ДЗ 1: Текст "Нет в наличии"
+    stock_label = QLabel()
+    if total_quantity == 0:
+        stock_label.setText("Нет в наличии")
+        stock_label.setStyleSheet("color: red; font-weight: bold; border: none; background: transparent;")
+    else:
+        stock_label.setText(f"В наличии: {total_quantity} шт.")
+        stock_label.setStyleSheet("border: none; background: transparent;")
     
     text_layout.addWidget(name_label)
     text_layout.addWidget(category_label)
@@ -104,30 +108,30 @@ def create_card(product, discount, new_price):
     price_box.addWidget(old_price_label)
     price_box.addWidget(new_price_label)
     price_box.addWidget(discount_label)
+    
+    # ДЗ 1: Кнопка "Оформить заказ" и её блокировка
+    order_btn = QPushButton("Оформить заказ")
+    order_btn.setStyleSheet("background-color: #2E7D32; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px;")
+    
+    if total_quantity == 0:
+        order_btn.setEnabled(False) # Блокируем кнопку
+        order_btn.setText("Нет в наличии")
+        order_btn.setStyleSheet("background-color: #999999; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px;")
+        
+    price_box.addWidget(order_btn)
+    
     card_layout.addLayout(price_box)
     
     card.setLayout(card_layout)
     
-    # ЗАДАНИЕ 3: Если остаток 0 - голубой цвет. Иначе - обычный с анимацией.
     if total_quantity == 0:
         card.setStyleSheet("""
-            #productCard { 
-                background-color: #ADD8E6; 
-                border: 1px solid #999999; 
-                border-radius: 8px; 
-            }
+            #productCard { background-color: #ADD8E6; border: 1px solid #999999; border-radius: 8px; }
         """)
     else:
         card.setStyleSheet("""
-            #productCard { 
-                background-color: #F9F9F9; 
-                border: 1px solid #CCCCCC; 
-                border-radius: 8px; 
-            }
-            #productCard:hover { 
-                background-color: #FFFFFF; 
-                border: 2px solid #2E8B57; 
-            }
+            #productCard { background-color: #F9F9F9; border: 1px solid #CCCCCC; border-radius: 8px; }
+            #productCard:hover { background-color: #FFFFFF; border: 2px solid #2E8B57; }
         """)
     
     return card
@@ -198,16 +202,31 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.admin_button)
         main_layout.addLayout(buttons_layout)
 
+        # ДЗ 3: Фильтры и сортировки
         filters_layout = QHBoxLayout()
+        
         self.filter_checkbox = QCheckBox("Только со скидкой > 15%")
         self.filter_checkbox.setStyleSheet("font-size: 14px; font-weight: bold;")
         self.filter_checkbox.clicked.connect(self.load_products) 
         filters_layout.addWidget(self.filter_checkbox)
 
+        # Новый фильтр "Только в наличии"
+        self.in_stock_checkbox = QCheckBox("Только в наличии")
+        self.in_stock_checkbox.setStyleSheet("font-size: 14px; font-weight: bold; margin-left: 10px;")
+        self.in_stock_checkbox.clicked.connect(self.load_products)
+        filters_layout.addWidget(self.in_stock_checkbox)
+
         self.sort_combo = QComboBox()
-        self.sort_combo.addItems(["Сортировка: по скидке", "Цена (по возрастанию)", "Цена (по убыванию)"])
+        # ДЗ 3: Новая сортировка
+        self.sort_combo.addItems([
+            "Сортировка: по скидке", 
+            "Цена (по возрастанию)", 
+            "Цена (по убыванию)",
+            "Сначала в наличии" # <--- Новый пункт
+        ])
         self.sort_combo.currentIndexChanged.connect(self.load_products)
         filters_layout.addWidget(self.sort_combo)
+        
         main_layout.addLayout(filters_layout)
 
         self.scroll_area = QScrollArea()
@@ -251,16 +270,25 @@ class MainWindow(QMainWindow):
         cursor.close()
         self.db.release_connection(conn)
         
+        # ДЗ 3: Обновленная логика сортировки
         sort_idx = self.sort_combo.currentIndex()
         if sort_idx == 1:
             products_data.sort(key=lambda x: x[2])
         elif sort_idx == 2:
             products_data.sort(key=lambda x: x[2], reverse=True)
+        elif sort_idx == 3:
+            # Сначала в наличии (у кого quantity > 0), потом нет
+            products_data.sort(key=lambda x: x[0][5] == 0) 
         else:
             products_data.sort(key=lambda x: x[1], reverse=True)
             
+        # Фильтр по скидке
         if self.filter_checkbox.isChecked():
             products_data = [item for item in products_data if item[1] > 15]
+            
+        # ДЗ 3: Фильтр "Только в наличии"
+        if self.in_stock_checkbox.isChecked():
+            products_data = [item for item in products_data if item[0][5] > 0]
             
         for product, discount, new_price in products_data:
             card = create_card(product, discount, new_price)
