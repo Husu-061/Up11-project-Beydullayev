@@ -1,5 +1,4 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, 
-                               QPushButton, QMessageBox)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton)
 
 class LoginWindow(QWidget):
     def __init__(self, db):
@@ -30,18 +29,18 @@ class LoginWindow(QWidget):
 
     def check_login(self):
         login = self.login_input.text().strip()
+        
         if not login:
-            QMessageBox.warning(self, "Ошибка", "Введите логин!")
+            print("Ошибка: Введите логин!")
             return
             
         conn = self.db.get_connection()
         if not conn:
-            QMessageBox.critical(self, "Ошибка", "Нет подключения к базе данных!")
+            print("Ошибка: Нет подключения к БД!")
             return
             
         try:
             cur = conn.cursor()
-            # ДЗ: Добавили JOIN с таблицей roles, чтобы получить название роли
             query = """
                 SELECT u.user_id, u.role_id, u.last_name, u.first_name, u.middle_name, r.name 
                 FROM users u 
@@ -52,19 +51,19 @@ class LoginWindow(QWidget):
             result = cur.fetchone()
             cur.close()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка БД", f"Ошибка: {e}")
+            print(f"Ошибка БД: {e}")
             result = None
         finally:
             self.db.release_connection(conn)
             
         if result is None:
-            QMessageBox.warning(self, "Ошибка", "Пользователь не найден!")
+            print("Ошибка: Пользователь не найден!")
         else:
             self.user_id = result[0]
             self.role_id = result[1]
             
             last_name, first_name, middle_name = result[2], result[3], result[4]
-            role_name = result[5] # Название роли из БД
+            role_name = result[5]
             
             if middle_name:
                 self.full_name = f"{last_name} {first_name} {middle_name}"
@@ -72,7 +71,6 @@ class LoginWindow(QWidget):
                 self.full_name = f"{last_name} {first_name}"
             
             from main import MainWindow
-            # Передаем role_name в MainWindow
-            self.main_window = MainWindow(role_id=self.role_id, full_name=self.full_name, role_name=role_name)
+            self.main_window = MainWindow(role_id=self.role_id, full_name=self.full_name, role_name=role_name, db=self.db)
             self.main_window.show()
             self.close()

@@ -6,10 +6,10 @@ class Database:
         self.connection_pool = None
         try:
             self.connection_pool = pool.SimpleConnectionPool(
-                1, 5,
+                1, 10,
                 dbname="healthy_food",
                 user="postgres",
-                password="123", 
+                password="123", # <--- ВАШ ПАРОЛЬ
                 host="localhost",
                 port="5432",
                 client_encoding='UTF8'
@@ -35,11 +35,9 @@ class Database:
 
     def get_products(self):
         conn = self.get_connection()
-        if not conn:
-            return []
+        if not conn: return []
         try:
             cur = conn.cursor()
-
             query = """
                 SELECT p.product_id, c.name, p.name, p.price, p.stock_quantity, p.image_path
                 FROM products p
