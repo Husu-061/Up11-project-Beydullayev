@@ -7,7 +7,8 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
 
-# Константы (избавляемся от магических чисел)
+# Ветка feature/new-design: тестовое изменение
+
 DISCOUNT_RATE = 0.75  # Скидка 25%
 IMAGE_CACHE = {}
 
