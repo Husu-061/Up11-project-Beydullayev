@@ -1,0 +1,36 @@
+/* Основной фон и шрифт */
+QMainWindow, QWidget {
+    background-color: #FFFFFF;
+    font-family: Calibri;
+    color: #000000;
+}
+
+/* Шапка (Header) */
+#headerWidget {
+    background-color: #D2F6E7;
+}
+
+/* Кнопки */
+QPushButton {
+    background-color: #70B2AF;
+    color: white;
+    padding: 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-family: Calibri;
+}
+QPushButton:hover {
+    background-color: #5E9B98;
+}
+QPushButton:disabled {
+    background-color: #999999;
+}
+
+/* Поля ввода и выпадающие списки */
+QLineEdit, QComboBox {
+    padding: 5px;
+    border: 1px solid #CCCCCC;
+    border-radius: 4px;
+    background-color: #FFFFFF;
+    font-family: Calibri;
+}

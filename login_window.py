@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton)
+from PySide6.QtGui import QIcon
 
 class LoginWindow(QWidget):
     def __init__(self, db):
@@ -10,6 +11,8 @@ class LoginWindow(QWidget):
         
         self.setWindowTitle("Авторизация")
         self.resize(300, 200)
+        # ДЗ: Иконка для окна входа
+        self.setWindowIcon(QIcon("resources/icon.ico"))
         
         layout = QVBoxLayout()
         layout.addWidget(QLabel("Логин:"))
@@ -21,29 +24,7 @@ class LoginWindow(QWidget):
         layout.addWidget(self.btn_login)
         
         self.setLayout(layout)
-        
-        # ЗАДАНИЕ 4.1: Кнопка бирюзовая #70B2AF и шрифт Calibri
-        self.setStyleSheet("""
-            QWidget { 
-                background-color: #FFFFFF; 
-                font-family: Calibri; 
-                font-size: 14px; 
-            }
-            QLineEdit { 
-                padding: 5px; 
-                border: 1px solid #CCC; 
-                border-radius: 4px; 
-                font-family: Calibri;
-            }
-            QPushButton { 
-                background-color: #70B2AF; 
-                color: white; 
-                padding: 8px; 
-                border-radius: 4px; 
-                font-weight: bold; 
-                font-family: Calibri;
-            }
-        """)
+        # Стили убраны, они применяются глобально из QSS-файла!
 
     def check_login(self):
         login = self.login_input.text().strip()
