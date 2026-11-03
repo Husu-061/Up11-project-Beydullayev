@@ -1,5 +1,4 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton)
-from database import Database
 
 class LoginWindow(QWidget):
     def __init__(self, db):

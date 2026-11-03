@@ -6,14 +6,12 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
 
-# ДЗ: Кэш для картинок
 image_cache = {}
 
 def calculate_discount(old_price, new_price):
     if old_price == 0: return 0
     return (old_price - new_price) / old_price * 100
 
-# ДЗ: Возвращает кортеж и выводит название товара
 def calculate_price(product_id, old_price, cursor):
     try:
         cursor.execute("SELECT name FROM products WHERE product_id = %s", (product_id,))
@@ -29,13 +27,8 @@ def calculate_price(product_id, old_price, cursor):
         result = cursor.fetchone()
         orders_count = result[0] if result else 0
         
-        if orders_count == 0:
-            final_price = float(old_price) * 0.75
-        else:
-            final_price = float(old_price)
-            
-        discount_size = float(old_price) - final_price
-        return final_price, discount_size
+        final_price = float(old_price) * 0.75 if orders_count == 0 else float(old_price)
+        return final_price, float(old_price) - final_price
     except Exception as e:
         return float(old_price), 0.0
 
@@ -46,8 +39,12 @@ def create_card(product, discount, new_price):
     card_layout = QHBoxLayout()
     card_layout.setContentsMargins(10, 10, 10, 10)
     
-    # ДЗ: Кэширование изображений
-    image_path = product[5]
+    # ВНИМАНИЕ НА ИНДЕКСЫ! 
+    # 0-id, 1-cat, 2-name, 3-price, 4-image, 5-total_quantity
+    image_path = product[4] 
+    total_quantity = product[5] 
+    
+    # Кэш картинок
     if image_path not in image_cache:
         if image_path is not None and os.path.exists(f"Images/{image_path}"):
             image_cache[image_path] = QPixmap(f"Images/{image_path}")
@@ -68,8 +65,11 @@ def create_card(product, discount, new_price):
     name_label.setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent;")
     category_label = QLabel(f"Категория: {product[1]}")
     category_label.setStyleSheet("border: none; background: transparent;")
-    stock_label = QLabel(f"В наличии: {product[4]} шт.")
+    
+    # Выводим реальное количество!
+    stock_label = QLabel(f"В наличии: {total_quantity} шт.")
     stock_label.setStyleSheet("border: none; background: transparent;")
+    
     text_layout.addWidget(name_label)
     text_layout.addWidget(category_label)
     text_layout.addWidget(stock_label)
@@ -108,16 +108,26 @@ def create_card(product, discount, new_price):
     
     card.setLayout(card_layout)
     
-    # ДЗ: Подсветка, если остаток <= 3 + анимация наведения
-    if product[4] <= 3:
+    # ЗАДАНИЕ 3: Если остаток 0 - голубой цвет. Иначе - обычный с анимацией.
+    if total_quantity == 0:
         card.setStyleSheet("""
-            #productCard { background-color: #ff8080; border: 1px solid #CCCCCC; border-radius: 8px; }
-            #productCard:hover { background-color: #FFFFFF; border: 2px solid #2E8B57; }
+            #productCard { 
+                background-color: #ADD8E6; 
+                border: 1px solid #999999; 
+                border-radius: 8px; 
+            }
         """)
     else:
         card.setStyleSheet("""
-            #productCard { background-color: #F9F9F9; border: 1px solid #CCCCCC; border-radius: 8px; }
-            #productCard:hover { background-color: #FFFFFF; border: 2px solid #2E8B57; }
+            #productCard { 
+                background-color: #F9F9F9; 
+                border: 1px solid #CCCCCC; 
+                border-radius: 8px; 
+            }
+            #productCard:hover { 
+                background-color: #FFFFFF; 
+                border: 2px solid #2E8B57; 
+            }
         """)
     
     return card
@@ -166,7 +176,6 @@ class MainWindow(QMainWindow):
         header.addWidget(self.logout_button)
         main_layout.addLayout(header)
 
-        # ДЗ: Заголовок и версия приложения
         title_label = QLabel("Мир здорового питания")
         title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin-top: 10px;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -189,9 +198,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.admin_button)
         main_layout.addLayout(buttons_layout)
 
-        # ДЗ: Сортировка и Фильтр
         filters_layout = QHBoxLayout()
-        
         self.filter_checkbox = QCheckBox("Только со скидкой > 15%")
         self.filter_checkbox.setStyleSheet("font-size: 14px; font-weight: bold;")
         self.filter_checkbox.clicked.connect(self.load_products) 
@@ -201,7 +208,6 @@ class MainWindow(QMainWindow):
         self.sort_combo.addItems(["Сортировка: по скидке", "Цена (по возрастанию)", "Цена (по убыванию)"])
         self.sort_combo.currentIndexChanged.connect(self.load_products)
         filters_layout.addWidget(self.sort_combo)
-        
         main_layout.addLayout(filters_layout)
 
         self.scroll_area = QScrollArea()
@@ -245,14 +251,13 @@ class MainWindow(QMainWindow):
         cursor.close()
         self.db.release_connection(conn)
         
-        # ДЗ: Сортировка
         sort_idx = self.sort_combo.currentIndex()
         if sort_idx == 1:
-            products_data.sort(key=lambda x: x[2]) # По цене возрастание
+            products_data.sort(key=lambda x: x[2])
         elif sort_idx == 2:
-            products_data.sort(key=lambda x: x[2], reverse=True) # По цене убывание
+            products_data.sort(key=lambda x: x[2], reverse=True)
         else:
-            products_data.sort(key=lambda x: x[1], reverse=True) # По скидке
+            products_data.sort(key=lambda x: x[1], reverse=True)
             
         if self.filter_checkbox.isChecked():
             products_data = [item for item in products_data if item[1] > 15]

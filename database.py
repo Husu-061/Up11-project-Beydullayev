@@ -13,7 +13,6 @@ class Database:
     def __init__(self):
         self.connection_pool = None
         try:
-            # ДЗ: Настроен пул с minconn=1, maxconn=10
             self.connection_pool = pool.SimpleConnectionPool(
                 1, 10,
                 dbname="healthy_food",
@@ -42,7 +41,6 @@ class Database:
             self.connection_pool.closeall()
             print("Все соединения закрыты.")
 
-    # ДЗ: Универсальный метод для SELECT
     def execute_query(self, sql, params=None):
         conn = self.get_connection()
         if not conn: return []
@@ -54,11 +52,11 @@ class Database:
             return result
         except Exception as e:
             logging.error(f"Ошибка выполнения SELECT: {e}")
+            print(f"Ошибка SELECT: {e}")
             return []
         finally:
             self.release_connection(conn)
 
-    # ДЗ: Универсальный метод для INSERT/UPDATE/DELETE
     def execute_update(self, sql, params=None):
         conn = self.get_connection()
         if not conn: return False
@@ -75,27 +73,15 @@ class Database:
         finally:
             self.release_connection(conn)
 
-    # ДЗ: Функция обновления цены
-    def update_price(self, product_id, new_price):
-        if not isinstance(new_price, (int, float)) or new_price <= 0:
-            print("Ошибка: цена должна быть больше нуля")
-            logging.error(f"Попытка установить некорректную цену: {new_price}")
-            return False
-        
-        success = self.execute_update(
-            "UPDATE products SET price = %s WHERE product_id = %s",
-            (new_price, product_id)
-        )
-        if success:
-            print(f"Цена для товара ID {product_id} обновлена на {new_price}")
-        return success
-
     def get_products(self):
-        # Используем наш новый универсальный метод
+        # ЗАДАНИЕ 1 и 2: Правильный запрос с подсчетом остатков из stock_items
         query = """
-            SELECT p.product_id, c.name, p.name, p.price, p.stock_quantity, p.image_path
+            SELECT p.product_id, c.name, p.name, p.price, p.image_path,
+                   COALESCE(SUM(si.quantity), 0) AS total_quantity
             FROM products p
             JOIN categories c ON p.category_id = c.category_id
+            LEFT JOIN stock_items si ON p.product_id = si.product_id
+            GROUP BY p.product_id, c.name, p.name, p.price, p.image_path
             ORDER BY p.product_id
         """
         return self.execute_query(query)
