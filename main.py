@@ -2,7 +2,7 @@ import os
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, 
                                QWidget, QHBoxLayout, QScrollArea, QPushButton, 
-                               QCheckBox, QComboBox, QLineEdit) # <-- Добавили QLineEdit
+                               QCheckBox, QComboBox, QLineEdit) 
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
@@ -35,7 +35,6 @@ def calculate_price(product_id, old_price, cursor):
 def create_card(product, discount, new_price): 
     card = QWidget()
     card.setObjectName("productCard")
-    
     card_layout = QHBoxLayout()
     card_layout.setContentsMargins(10, 10, 10, 10)
     
@@ -134,7 +133,7 @@ class MainWindow(QMainWindow):
         self.db = db if db else Database() 
         
         self.setWindowTitle("Мир здорового питания — Каталог")
-        self.resize(850, 650)
+        self.resize(950, 700) # Сделали окно чуть шире для новых фильтров
         self.setWindowIcon(QIcon("resources/icon.ico"))
         
         self.setup_ui()
@@ -162,9 +161,6 @@ class MainWindow(QMainWindow):
         self.theme_button.clicked.connect(self.toggle_theme)
         header_layout.addWidget(self.theme_button)
         
-        self.settings_button = QPushButton("Настройки")
-        header_layout.addWidget(self.settings_button)
-        
         self.logout_button = QPushButton("Выход")
         self.logout_button.clicked.connect(self.logout)
         header_layout.addWidget(self.logout_button)
@@ -179,11 +175,6 @@ class MainWindow(QMainWindow):
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(title_label)
 
-        version_label = QLabel("Версия приложения: v1.0")
-        version_label.setStyleSheet("color: #888; font-size: 12px; margin-bottom: 10px;")
-        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(version_label)
-        
         buttons_layout = QHBoxLayout()
         self.order_button = QPushButton("Оформить заказ")
         self.manager_button = QPushButton("Заказы (менеджер)")
@@ -194,17 +185,16 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(buttons_layout)
 
         # ==========================================
-        # ЗАДАНИЯ 2, 3, 4: Панель поиска, фильтра и сортировки
+        # ДЗ: Панель поиска, фильтра, сортировки и сброса
         # ==========================================
         filters_layout = QHBoxLayout()
         
-        # ЗАДАНИЕ 4.1: Поиск
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Поиск...")
         self.search_input.textChanged.connect(self.load_products)
         filters_layout.addWidget(self.search_input)
         
-        # ЗАДАНИЕ 3.1: Фильтр по категориям
+        # Фильтр по категории
         self.filter_combo = QComboBox()
         self.filter_combo.addItem("Все категории")
         categories = self.db.get_categories()
@@ -212,15 +202,34 @@ class MainWindow(QMainWindow):
         self.filter_combo.currentIndexChanged.connect(self.load_products)
         filters_layout.addWidget(self.filter_combo)
         
-        # ЗАДАНИЕ 2.1: Сортировка
+        # ДЗ: Фильтр по производителю
+        self.manufacturer_combo = QComboBox()
+        self.manufacturer_combo.addItem("Все производители")
+        manufacturers = self.db.get_manufacturers()
+        self.manufacturer_combo.addItems(manufacturers)
+        self.manufacturer_combo.currentIndexChanged.connect(self.load_products)
+        filters_layout.addWidget(self.manufacturer_combo)
+        
+        # ДЗ: Сортировка (добавили "По наименованию")
         self.sort_combo = QComboBox()
-        self.sort_combo.addItems(["По возрастанию", "По убыванию", "По скидке", "Сначала в наличии"])
+        self.sort_combo.addItems([
+            "По возрастанию цены", 
+            "По убыванию цены", 
+            "По наименованию (А-Я)", 
+            "По скидке", 
+            "Сначала в наличии"
+        ])
         self.sort_combo.currentIndexChanged.connect(self.load_products)
         filters_layout.addWidget(self.sort_combo)
         
+        # ДЗ (Доп): Кнопка сброса
+        self.reset_button = QPushButton("Сбросить")
+        self.reset_button.clicked.connect(self.reset_filters)
+        filters_layout.addWidget(self.reset_button)
+        
         main_layout.addLayout(filters_layout)
 
-        # Чекбоксы (из прошлых ДЗ)
+        # Чекбоксы
         checkboxes_layout = QHBoxLayout()
         self.filter_checkbox = QCheckBox("Только со скидкой > 15%")
         self.filter_checkbox.clicked.connect(self.load_products) 
@@ -257,6 +266,34 @@ class MainWindow(QMainWindow):
                     app.setStyleSheet(f.read())
                 self.theme_button.setText("Тёмная тема")
 
+    # ДЗ (Доп): Метод сброса всех фильтров
+    def reset_filters(self):
+        # Блокируем сигналы, чтобы не было 5 перерисовок подряд
+        self.search_input.blockSignals(True)
+        self.filter_combo.blockSignals(True)
+        self.manufacturer_combo.blockSignals(True)
+        self.sort_combo.blockSignals(True)
+        self.filter_checkbox.blockSignals(True)
+        self.in_stock_checkbox.blockSignals(True)
+
+        self.search_input.clear()
+        self.filter_combo.setCurrentIndex(0)
+        self.manufacturer_combo.setCurrentIndex(0)
+        self.sort_combo.setCurrentIndex(0)
+        self.filter_checkbox.setChecked(False)
+        self.in_stock_checkbox.setChecked(False)
+
+        # Включаем сигналы обратно
+        self.search_input.blockSignals(False)
+        self.filter_combo.blockSignals(False)
+        self.manufacturer_combo.blockSignals(False)
+        self.sort_combo.blockSignals(False)
+        self.filter_checkbox.blockSignals(False)
+        self.in_stock_checkbox.blockSignals(False)
+
+        # Перерисовываем каталог
+        self.load_products()
+
     def load_products(self):
         self.scroll_area.setUpdatesEnabled(False)
         
@@ -267,12 +304,12 @@ class MainWindow(QMainWindow):
                 if widget is not None:
                     widget.deleteLater()
                 
-        # ЗАДАНИЕ 5.1: Формирование SQL-запроса
         search_text = f"%{self.search_input.text()}%"
         category = self.filter_combo.currentText()
+        manufacturer = self.manufacturer_combo.currentText() # ДЗ
         sort_by = self.sort_combo.currentText()
         
-        # Базовый запрос
+        # Обновленный SQL-запрос с учетом производителя
         query = """
             SELECT p.product_id, c.name, p.name, p.price, p.image_path,
                    COALESCE(SUM(si.quantity), 0) AS total_quantity
@@ -281,16 +318,16 @@ class MainWindow(QMainWindow):
             LEFT JOIN stock_items si ON p.product_id = si.product_id
             WHERE p.name ILIKE %s
             AND (c.name = %s OR %s = 'Все категории')
+            AND (p.manufacturer = %s OR %s = 'Все производители')
             GROUP BY p.product_id, c.name, p.name, p.price, p.image_path
         """
         
-        # Добавляем сортировку
-        if sort_by == "По возрастанию":
+        if sort_by == "По возрастанию цены":
             query += " ORDER BY p.price ASC"
-        elif sort_by == "По убыванию":
+        elif sort_by == "По убыванию цены":
             query += " ORDER BY p.price DESC"
-        elif sort_by == "По скидке":
-            query += " ORDER BY p.product_id ASC" # Скидку считаем в Python, поэтому пока сортируем по ID
+        elif sort_by == "По наименованию (А-Я)":
+            query += " ORDER BY p.name ASC"
         else:
             query += " ORDER BY p.product_id ASC"
             
@@ -300,7 +337,8 @@ class MainWindow(QMainWindow):
             return
             
         cursor = conn.cursor()
-        cursor.execute(query, (search_text, category, category))
+        # Передаем параметры (добавили manufacturer дважды)
+        cursor.execute(query, (search_text, category, category, manufacturer, manufacturer))
         products = cursor.fetchall()
         
         products_data = []
@@ -313,13 +351,11 @@ class MainWindow(QMainWindow):
         cursor.close()
         self.db.release_connection(conn)
         
-        # Вторичная сортировка (по скидке, если выбрано)
         if sort_by == "По скидке":
             products_data.sort(key=lambda x: x[1], reverse=True)
         elif sort_by == "Сначала в наличии":
             products_data.sort(key=lambda x: x[0][5] == 0)
             
-        # Дополнительные фильтры
         if self.filter_checkbox.isChecked():
             products_data = [item for item in products_data if item[1] > 15]
         if self.in_stock_checkbox.isChecked():
@@ -332,7 +368,7 @@ class MainWindow(QMainWindow):
         self.scroll_area.setUpdatesEnabled(True)
 
     def setup_role_interface(self):
-        for btn in [self.order_button, self.manager_button, self.admin_button, self.settings_button]:
+        for btn in [self.order_button, self.manager_button, self.admin_button]:
             btn.hide()
             btn.setEnabled(False)
         
@@ -341,8 +377,6 @@ class MainWindow(QMainWindow):
             self.admin_button.setEnabled(True)
             self.manager_button.show()
             self.manager_button.setEnabled(True)
-            self.settings_button.show() 
-            self.settings_button.setEnabled(True)
         elif self.role_id == 2:
             self.manager_button.show()
             self.manager_button.setEnabled(True)

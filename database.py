@@ -49,8 +49,12 @@ class Database:
         finally:
             self.release_connection(conn)
 
-    # ЗАДАНИЕ 1.1: Получение списка категорий для фильтра
     def get_categories(self):
         query = "SELECT DISTINCT name FROM categories ORDER BY name"
+        result = self.execute_query(query)
+        return [row[0] for row in result] if result else []
+
+    def get_manufacturers(self):
+        query = "SELECT DISTINCT manufacturer FROM products WHERE manufacturer IS NOT NULL ORDER BY manufacturer"
         result = self.execute_query(query)
         return [row[0] for row in result] if result else []
