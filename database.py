@@ -93,14 +93,13 @@ class Database:
         return [row[0] for row in result] if result else []
 
     def get_products(self):
-        """Возвращает список товаров с категориями и общим остатком на складе."""
         query = """
-            SELECT p.product_id, c.name, p.name, p.price, p.image_path,
+            SELECT p.product_id, c.name, p.name, p.price, p.image_path, p.manufacturer,
                    COALESCE(SUM(si.quantity), 0) AS total_quantity
             FROM products p
             JOIN categories c ON p.category_id = c.category_id
             LEFT JOIN stock_items si ON p.product_id = si.product_id
-            GROUP BY p.product_id, c.name, p.name, p.price, p.image_path
+            GROUP BY p.product_id, c.name, p.name, p.price, p.image_path, p.manufacturer
             ORDER BY p.product_id
         """
         return self.execute_query(query)

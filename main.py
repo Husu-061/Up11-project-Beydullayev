@@ -7,23 +7,16 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
 
-# Ветка feature/new-design: тестовое изменение
-
-DISCOUNT_RATE = 0.75  # Скидка 25%
+DISCOUNT_RATE = 0.75
 IMAGE_CACHE = {}
 
 def calculate_discount(old_price, new_price):
-    """Вычисляет процент скидки между старой и новой ценой."""
-    if old_price == 0:
-        return 0
+    if old_price == 0: return 0
     return (old_price - new_price) / old_price * 100
 
 def calculate_price(product_id, old_price, cursor):
-    """Возвращает кортеж (итоговая цена, размер скидки) с учётом заказов за месяц."""
     try:
-        # Получаем название товара (для логирования, если нужно)
         cursor.execute("SELECT name FROM products WHERE product_id = %s", (product_id,))
-        
         query = """
             SELECT COUNT(*) FROM order_items oi
             JOIN orders o ON oi.order_id = o.order_id
@@ -33,7 +26,6 @@ def calculate_price(product_id, old_price, cursor):
         result = cursor.fetchone()
         orders_count = result[0] if result else 0
 
-        # Если заказов за месяц не было, применяем скидку
         if orders_count == 0:
             final_price = float(old_price) * DISCOUNT_RATE
         else:
@@ -44,17 +36,17 @@ def calculate_price(product_id, old_price, cursor):
     except Exception:
         return float(old_price), 0.0
 
-def create_card(product, discount, new_price):
-    """Создаёт виджет карточки товара для каталога."""
+def create_card(product, discount, new_price): 
     card = QWidget()
     card.setObjectName("productCard")
     card_layout = QHBoxLayout()
     card_layout.setContentsMargins(10, 10, 10, 10)
 
+    # ИНДЕКСЫ: 0-id, 1-категория, 2-название, 3-цена, 4-картинка, 5-производитель, 6-остаток
     image_path = product[4]
-    total_quantity = product[5]
+    manufacturer = product[5]
+    total_quantity = product[6]
 
-    # Кэширование изображений
     if image_path not in IMAGE_CACHE:
         if image_path is not None and os.path.exists(f"Images/{image_path}"):
             IMAGE_CACHE[image_path] = QPixmap(f"Images/{image_path}")
@@ -71,8 +63,14 @@ def create_card(product, discount, new_price):
     card_layout.addWidget(img_label)
 
     text_layout = QVBoxLayout()
+    
+    # ЗАДАНИЕ 1: Производство и наименование сверху
     name_label = QLabel(f"Наименование: {product[2]}")
     name_label.setStyleSheet("color: black; font-weight: bold; font-size: 16px; border: none; background: transparent;")
+    
+    manufacturer_label = QLabel(f"Производство: {manufacturer if manufacturer else 'Не указано'}")
+    manufacturer_label.setStyleSheet("color: #555; border: none; background: transparent;")
+    
     category_label = QLabel(f"Категория: {product[1]}")
     category_label.setStyleSheet("color: black; border: none; background: transparent;")
 
@@ -85,6 +83,7 @@ def create_card(product, discount, new_price):
         stock_label.setStyleSheet("color: black; border: none; background: transparent;")
 
     text_layout.addWidget(name_label)
+    text_layout.addWidget(manufacturer_label)
     text_layout.addWidget(category_label)
     text_layout.addWidget(stock_label)
     card_layout.addLayout(text_layout)
@@ -131,18 +130,16 @@ def create_card(product, discount, new_price):
     card_layout.addLayout(price_box)
     card.setLayout(card_layout)
 
-    if total_quantity == 0:
-        card.setStyleSheet("#productCard { background-color: #ADD8E6; border: 1px solid #999999; border-radius: 8px; }")
+    # ЗАДАНИЕ 3: Подсветка #ff8080 (светло-красный) при остатке <= 3
+    if total_quantity <= 3:
+        card.setStyleSheet("#productCard { background-color: #ff8080; border: 1px solid #CCCCCC; border-radius: 8px; }")
     else:
         card.setStyleSheet("#productCard { background-color: #F9F9F9; border: 1px solid #CCCCCC; border-radius: 8px; } #productCard:hover { background-color: #FFFFFF; border: 2px solid #70B2AF; }")
 
     return card
 
 class MainWindow(QMainWindow):
-    """Главное окно приложения с каталогом товаров и фильтрами."""
-
-    def __init__(self, role_id=None, full_name=None, role_name=None, db=None):
-        """Инициализирует главное окно и загружает данные."""
+    def __init__(self, role_id=None, full_name=None, role_name=None, db=None): 
         super().__init__()
         self.role_id = role_id
         self.full_name = full_name
@@ -158,27 +155,15 @@ class MainWindow(QMainWindow):
         self.load_products()
 
     def setup_ui(self):
-        """Создаёт и настраивает все элементы интерфейса."""
         central = QWidget()
         main_layout = QVBoxLayout()
 
         header_layout = QHBoxLayout()
-        
-        # Безопасная загрузка логотипа
         logo_header = QLabel()
-        try:
-            if os.path.exists("resources/logo.png"):
-                pixmap_logo = QPixmap("resources/logo.png")
-                if not pixmap_logo.isNull():
-                    logo_header.setPixmap(pixmap_logo.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation))
-                else:
-                    logo_header.setText("[Логотип повреждён]")
-            else:
-                logo_header.setText("[Логотип не найден]")
-        except Exception as e:
-            print(f"Ошибка при загрузке логотипа: {e}")
-            logo_header.setText("[Ошибка логотипа]")
-            
+        if os.path.exists("resources/logo.png"):
+            pixmap_logo = QPixmap("resources/logo.png")
+            if not pixmap_logo.isNull():
+                logo_header.setPixmap(pixmap_logo.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation))
         header_layout.addWidget(logo_header)
         header_layout.addStretch()
 
@@ -213,7 +198,6 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.admin_button)
         main_layout.addLayout(buttons_layout)
 
-        # Панель поиска, фильтров и сортировки
         filters_layout = QHBoxLayout()
 
         self.search_input = QLineEdit()
@@ -236,13 +220,7 @@ class MainWindow(QMainWindow):
         filters_layout.addWidget(self.manufacturer_combo)
 
         self.sort_combo = QComboBox()
-        self.sort_combo.addItems([
-            "По возрастанию цены",
-            "По убыванию цены",
-            "По наименованию (А-Я)",
-            "По скидке",
-            "Сначала в наличии"
-        ])
+        self.sort_combo.addItems(["По возрастанию цены", "По убыванию цены", "По наименованию (А-Я)", "По скидке", "Сначала в наличии"])
         self.sort_combo.currentIndexChanged.connect(self.load_products)
         filters_layout.addWidget(self.sort_combo)
 
@@ -277,7 +255,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
     def toggle_theme(self):
-        """Переключает светлую и тёмную тему оформления."""
         app = QApplication.instance()
         if isinstance(app, QApplication):
             if self.theme_button.text() == "Тёмная тема":
@@ -290,7 +267,6 @@ class MainWindow(QMainWindow):
                 self.theme_button.setText("Тёмная тема")
 
     def reset_filters(self):
-        """Сбрасывает все фильтры и поисковый запрос."""
         self.search_input.blockSignals(True)
         self.filter_combo.blockSignals(True)
         self.manufacturer_combo.blockSignals(True)
@@ -315,9 +291,7 @@ class MainWindow(QMainWindow):
         self.load_products()
 
     def load_products(self):
-        """Загружает и отображает товары с учётом фильтров, поиска и сортировки."""
         self.scroll_area.setUpdatesEnabled(False)
-
         while self.scroll_layout.count():
             item = self.scroll_layout.takeAt(0)
             if item is not None:
@@ -331,7 +305,7 @@ class MainWindow(QMainWindow):
         sort_by = self.sort_combo.currentText()
 
         query = """
-            SELECT p.product_id, c.name, p.name, p.price, p.image_path,
+            SELECT p.product_id, c.name, p.name, p.price, p.image_path, p.manufacturer,
                    COALESCE(SUM(si.quantity), 0) AS total_quantity
             FROM products p
             JOIN categories c ON p.category_id = c.category_id
@@ -339,7 +313,7 @@ class MainWindow(QMainWindow):
             WHERE p.name ILIKE %s
             AND (c.name = %s OR %s = 'Все категории')
             AND (p.manufacturer = %s OR %s = 'Все производители')
-            GROUP BY p.product_id, c.name, p.name, p.price, p.image_path
+            GROUP BY p.product_id, c.name, p.name, p.price, p.image_path, p.manufacturer
         """
 
         if sort_by == "По возрастанию цены":
@@ -373,12 +347,12 @@ class MainWindow(QMainWindow):
         if sort_by == "По скидке":
             products_data.sort(key=lambda x: x[1], reverse=True)
         elif sort_by == "Сначала в наличии":
-            products_data.sort(key=lambda x: x[0][5] == 0)
+            products_data.sort(key=lambda x: x[0][6] == 0) # Индекс остатка теперь 6
 
         if self.filter_checkbox.isChecked():
             products_data = [item for item in products_data if item[1] > 15]
         if self.in_stock_checkbox.isChecked():
-            products_data = [item for item in products_data if item[0][5] > 0]
+            products_data = [item for item in products_data if item[0][6] > 0] # Индекс остатка 6
 
         for product, discount, new_price in products_data:
             card = create_card(product, discount, new_price)
@@ -387,7 +361,6 @@ class MainWindow(QMainWindow):
         self.scroll_area.setUpdatesEnabled(True)
 
     def setup_role_interface(self):
-        """Настраивает видимость кнопок в зависимости от роли пользователя."""
         for btn in [self.order_button, self.manager_button, self.admin_button]:
             btn.hide()
             btn.setEnabled(False)
@@ -405,14 +378,12 @@ class MainWindow(QMainWindow):
             self.order_button.setEnabled(True)
 
     def logout(self):
-        """Выходит из аккаунта и открывает окно входа."""
         from login_window import LoginWindow
         self.login_window = LoginWindow(self.db)
         self.login_window.show()
         self.close()
 
     def closeEvent(self, event):
-        """Обрабатывает закрытие окна приложения."""
         event.accept()
 
 if __name__ == "__main__":
