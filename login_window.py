@@ -3,6 +3,22 @@ from PySide6.QtWidgets import (QDialog, QLineEdit, QPushButton,
 from PySide6.QtGui import QIcon
 import sys
 
+# ЗАДАНИЕ 1: Функция валидации логина (вне класса)
+def validate_login(raw):
+    login = raw.strip()
+    
+    # 1. Проверка на пустоту (после удаления пробелов)
+    if not login:
+        return None, "Введите логин (пробелы не считаются)"
+    
+    # 2. Проверка минимальной длины
+    if len(login) < 3:
+        return None, "Логин должен содержать минимум 3 символа"
+    
+    # Если всё ок, возвращаем очищенный логин и None вместо ошибки
+    return login, None
+
+
 class LoginWindow(QDialog):
     def __init__(self, db):
         super().__init__()
@@ -32,13 +48,14 @@ class LoginWindow(QDialog):
         self.setLayout(layout)
 
     def check_login(self):
-        login = self.login_input.text().strip()
+        # ЗАДАНИЕ 1: Используем функцию валидации
+        login, error = validate_login(self.login_input.text())
         
-        # ЗАДАНИЕ 1.1: Error для пустого логина
-        if not login:
-            QMessageBox.critical(self, "Ошибка", "Введите логин")
+        if error:
+            QMessageBox.critical(self, "Ошибка", error)
             return
             
+        # Дальше идет SQL-запрос к БД
         query = """
             SELECT u.user_id, u.role_id, u.last_name, u.first_name, u.middle_name, r.name 
             FROM users u 
@@ -60,7 +77,6 @@ class LoginWindow(QDialog):
             else:
                 self.full_name = f"{last_name} {first_name}"
             
-            # ЗАДАНИЕ 3.1: Information для успешного входа
             QMessageBox.information(self, "Информация", f"Добро пожаловать, {self.full_name}!")
             
             self.accept()
@@ -75,5 +91,5 @@ class LoginWindow(QDialog):
             )
             self.main_window.show()
         else:
-            # ЗАДАНИЕ 1.2: Error для неверного логина
+            # Если логин не найден в БД
             QMessageBox.critical(self, "Ошибка", "Пользователь не найден")
