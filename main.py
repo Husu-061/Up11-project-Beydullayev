@@ -45,6 +45,7 @@ def create_card(product, discount, new_price, main_window):
     card_layout = QHBoxLayout()
     card_layout.setContentsMargins(10, 10, 10, 10)
 
+    # Индексы: 0-id, 1-категория, 2-название, 3-цена, 4-картинка, 5-производитель, 6-остаток
     image_path = product[4]
     manufacturer = product[5]
     total_quantity = product[6]
@@ -498,7 +499,7 @@ class MainWindow(QMainWindow):
             FROM products p
             JOIN categories c ON p.category_id = c.category_id
             LEFT JOIN stock_items si ON p.product_id = si.product_id
-            WHERE p.name ILIKE %s
+            WHERE (p.name ILIKE %s OR p.description ILIKE %s)
             AND (c.name = %s OR %s = 'Все категории')
             AND (p.manufacturer = %s OR %s = 'Все производители')
             GROUP BY p.product_id, c.name, p.name, p.price, p.image_path, p.manufacturer
@@ -519,7 +520,8 @@ class MainWindow(QMainWindow):
             return
 
         cursor = conn.cursor()
-        cursor.execute(query, (search_text, category, category, manufacturer, manufacturer))
+        # Передаем search_text ДВАЖДЫ (для p.name и p.description)
+        cursor.execute(query, (search_text, search_text, category, category, manufacturer, manufacturer))
         products = cursor.fetchall()
 
         products_data = []
@@ -548,7 +550,6 @@ class MainWindow(QMainWindow):
 
         self.scroll_area.setUpdatesEnabled(True)
 
-    # ЗАДАНИЕ 2.1: Warning для выхода
     def logout(self):
         reply = QMessageBox.warning(
             self, "Предупреждение", 
@@ -561,7 +562,6 @@ class MainWindow(QMainWindow):
             self.login_window.show()
             self.close()
 
-    # ЗАДАНИЕ 2.1: Warning при закрытии окна
     def closeEvent(self, event):
         reply = QMessageBox.warning(
             self, "Предупреждение", 
@@ -587,4 +587,4 @@ if __name__ == "__main__":
     login_window.show()
     exit_code = app.exec()
     db.close_all()
-    sys.exit(exit_code) 
+    sys.exit(exit_code)
