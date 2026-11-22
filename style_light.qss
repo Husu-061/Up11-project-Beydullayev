@@ -34,3 +34,11 @@ QLineEdit, QComboBox {
     background-color: #FFFFFF;
     font-family: Calibri;
 }
+
+QComboBox QAbstractItemView {
+    background-color: #FFFFFF; /* Белый фон списка */
+    color: #000000;            /* Черный текст */
+    selection-background-color: #70B2AF; /* Бирюзовый фон при наведении */
+    selection-color: white;    /* Белый текст при наведении */
+    border: 1px solid #CCCCCC;
+}

@@ -39,7 +39,7 @@ def calculate_price(product_id, old_price, cursor):
     except Exception:
         return float(old_price), 0.0
 
-def create_card(product, discount, new_price, main_window): 
+def create_card(product, discount, new_price, sizes, main_window): 
     card = QWidget()
     card.setObjectName("productCard")
     card_layout = QHBoxLayout()
@@ -125,6 +125,28 @@ def create_card(product, discount, new_price, main_window):
     details_btn.clicked.connect(lambda: main_window.switch_page(1))
     price_box.addWidget(details_btn)
 
+    # Выпадающий список размеров (с принудительно белым фоном и черным текстом)
+    size_combo = QComboBox()
+    size_combo.setStyleSheet("""
+        QComboBox {
+            background-color: #FFFFFF;
+            color: #000000;
+            padding: 5px;
+            border: 1px solid #CCC;
+            border-radius: 4px;
+            font-family: Calibri;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #FFFFFF;
+            color: #000000;
+            selection-background-color: #70B2AF;
+            selection-color: white;
+        }
+    """)
+    for size_id, size_value in sizes:
+        size_combo.addItem(str(size_value), size_id)
+    price_box.addWidget(size_combo)
+
     order_btn = QPushButton("Оформить заказ")
     if total_quantity == 0:
         order_btn.setEnabled(False)
@@ -132,7 +154,7 @@ def create_card(product, discount, new_price, main_window):
         order_btn.setStyleSheet("QPushButton { background-color: #999999; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px; font-family: Calibri; }")
     else:
         order_btn.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px; font-family: Calibri; }")
-        order_btn.clicked.connect(lambda checked, pid=product[0]: main_window.add_to_order(pid))
+        order_btn.clicked.connect(lambda checked, pid=product[0], sc=size_combo: main_window.add_to_order(pid, sc.currentData()))
 
     price_box.addWidget(order_btn)
     card_layout.addLayout(price_box)
@@ -310,8 +332,8 @@ class MainWindow(QMainWindow):
         orders_layout.addWidget(title_orders)
 
         self.orders_table = QTableWidget()
-        self.orders_table.setColumnCount(5)
-        self.orders_table.setHorizontalHeaderLabels(["№ Заказа", "Дата", "Товар", "Кол-во", "Цена"])
+        self.orders_table.setColumnCount(6)
+        self.orders_table.setHorizontalHeaderLabels(["№ Заказа", "Дата", "Товар", "Кол-во", "Цена", "Действие"])
         self.orders_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.orders_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         orders_layout.addWidget(self.orders_table)
@@ -383,8 +405,38 @@ class MainWindow(QMainWindow):
             self.orders_table.insertRow(row)
             for col, value in enumerate(data):
                 self.orders_table.setItem(row, col, QTableWidgetItem(str(value)))
+            
+            order_id = data[0]
+            delete_btn = QPushButton("Удалить")
+            delete_btn.setStyleSheet("background-color: #D32F2F; color: white; padding: 3px; border-radius: 3px;")
+            delete_btn.clicked.connect(lambda checked, oid=order_id: self.delete_order(oid))
+            self.orders_table.setCellWidget(row, 5, delete_btn)
 
-    def add_to_order(self, product_id):
+    def delete_order(self, order_id):
+        reply = QMessageBox.question(
+            self, "Удаление заказа", 
+            f"Вы уверены, что хотите удалить заказ №{order_id}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            conn = self.db.get_connection()
+            if not conn:
+                return
+            try:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM order_items WHERE order_id = %s", (order_id,))
+                cursor.execute("DELETE FROM orders WHERE order_id = %s", (order_id,))
+                conn.commit()
+                cursor.close()
+                QMessageBox.information(self, "Успех", f"Заказ №{order_id} удален")
+                self.load_orders()
+            except Exception as e:
+                print(f"Ошибка при удалении заказа: {e}")
+                conn.rollback()
+            finally:
+                self.db.release_connection(conn)
+
+    def add_to_order(self, product_id, size_id):
         if not self.user_id:
             print("Ошибка: нет user_id")
             return
@@ -411,7 +463,7 @@ class MainWindow(QMainWindow):
             
             cursor.execute(
                 "INSERT INTO order_items (order_id, product_id, size_id, quantity, price) VALUES (%s, %s, %s, %s, %s)",
-                (order_id, product_id, 1, 1, price)
+                (order_id, product_id, size_id, 1, price)
             )
             
             conn.commit()
@@ -520,9 +572,11 @@ class MainWindow(QMainWindow):
             return
 
         cursor = conn.cursor()
-        # Передаем search_text ДВАЖДЫ (для p.name и p.description)
         cursor.execute(query, (search_text, search_text, category, category, manufacturer, manufacturer))
         products = cursor.fetchall()
+
+        cursor.execute("SELECT size_id, value FROM sizes ORDER BY size_id")
+        sizes = cursor.fetchall()
 
         products_data = []
         for p in products:
@@ -545,7 +599,7 @@ class MainWindow(QMainWindow):
             products_data = [item for item in products_data if item[0][6] > 0]
 
         for product, discount, new_price in products_data:
-            card = create_card(product, discount, new_price, self)
+            card = create_card(product, discount, new_price, sizes, self)
             self.scroll_layout.addWidget(card)
 
         self.scroll_area.setUpdatesEnabled(True)
