@@ -171,7 +171,7 @@ class ProductCard(QDialog):
         self.parent_window = parent
         self.role_id = role_id
         self.db = parent.db if parent else Database()
-        self.current_price = 0.0  # <--- ДОБАВЛЕНО: сохраняем актуальную цену
+        self.current_price = 0.0
         self.setWindowTitle("Карточка товара")
         self.resize(400, 650)
         self.setup_ui()
@@ -274,8 +274,7 @@ class ProductCard(QDialog):
             new_price = old_price_float
             discount_percent = 0
 
-        # СОХРАНЯЕМ ЦЕНУ ДЛЯ КОРЗИНЫ
-        self.current_price = new_price  
+        self.current_price = new_price
 
         self.name_label.setText(name)
         if discount_percent > 0:
@@ -355,10 +354,7 @@ class ProductCard(QDialog):
         size_id = self.size_combo.currentData()
         qty = self.quantity_spin.value()
         name = self.name_label.text()
-        
-        # ИСПОЛЬЗУЕМ ЦЕНУ СО СКИДКОЙ
-        price = self.current_price  
-        
+        price = self.current_price
         if self.parent_window:
             self.parent_window.add_to_cart(name, qty, price, self.product_id, size_id)
             QMessageBox.information(self, "Успех", f"Товар '{name}' добавлен в корзину")
@@ -521,6 +517,21 @@ class MainWindow(QMainWindow):
         self.total_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         cart_layout.addWidget(self.total_label)
 
+        # Блок изменения количества
+        change_layout = QHBoxLayout()
+        change_layout.addWidget(QLabel("Новое количество:"))
+        self.change_quantity_spin = QSpinBox()
+        self.change_quantity_spin.setMinimum(1)
+        self.change_quantity_spin.setMaximum(100)
+        self.change_quantity_spin.setStyleSheet("padding: 5px; border: 1px solid #CCC; border-radius: 4px;")
+        change_layout.addWidget(self.change_quantity_spin)
+
+        self.change_btn = QPushButton("Изменить количество")
+        self.change_btn.setStyleSheet("background-color: #1976D2; color: white; padding: 8px; border-radius: 5px;")
+        self.change_btn.clicked.connect(self.change_quantity)
+        change_layout.addWidget(self.change_btn)
+        cart_layout.addLayout(change_layout)
+
         cart_buttons_layout = QHBoxLayout()
         self.remove_from_cart_btn = QPushButton("Удалить выбранное")
         self.remove_from_cart_btn.setStyleSheet("background-color: #D32F2F; color: white; padding: 8px; border-radius: 5px;")
@@ -569,6 +580,24 @@ class MainWindow(QMainWindow):
         self.cart_table.setItem(row, 2, QTableWidgetItem(str(price)))
         self.cart_table.setItem(row, 3, QTableWidgetItem(str(quantity * price)))
         self.cart_table.setItem(row, 4, QTableWidgetItem(str(product_id)))
+        self.update_total()
+
+    def change_quantity(self):
+        """Изменяет количество товара в выбранной строке корзины."""
+        row = self.cart_table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите строку для изменения")
+            return
+        
+        new_quantity = self.change_quantity_spin.value()
+        
+        price_item = self.cart_table.item(row, 2)
+        if price_item is None:
+            return
+        price = float(price_item.text())
+        
+        self.cart_table.setItem(row, 1, QTableWidgetItem(str(new_quantity)))
+        self.cart_table.setItem(row, 3, QTableWidgetItem(str(new_quantity * price)))
         self.update_total()
 
     def remove_from_cart(self):
