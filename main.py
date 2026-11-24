@@ -1,16 +1,41 @@
 import os
 import sys
+import shutil
+import uuid
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, 
                                QWidget, QHBoxLayout, QScrollArea, QPushButton, 
                                QCheckBox, QComboBox, QLineEdit, QStackedWidget, 
                                QSizePolicy, QTableWidget, QTableWidgetItem, 
-                               QHeaderView, QMessageBox, QDialog, QSpinBox)
+                               QHeaderView, QMessageBox, QDialog, QSpinBox,
+                               QFileDialog)
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QStandardPaths
 from database import Database
 
 DISCOUNT_RATE = 0.75
 IMAGE_CACHE = {}
+
+def get_image_path(image_name):
+    """Возвращает полный путь к изображению, проверяя папку приложения и папку проекта."""
+    if not image_name:
+        return "resources/picture.png"
+    
+    # 1. Проверяем папку данных приложения (AppLocalDataLocation/images)
+    app_data_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
+    if app_data_dir:
+        app_images_dir = os.path.join(app_data_dir, "images")
+        full_path = os.path.join(app_images_dir, image_name)
+        if os.path.exists(full_path):
+            return full_path
+    
+    # 2. Проверяем папку Images в проекте
+    project_images_dir = "Images"
+    full_path = os.path.join(project_images_dir, image_name)
+    if os.path.exists(full_path):
+        return full_path
+    
+    # 3. Заглушка
+    return "resources/picture.png"
 
 def calculate_discount(old_price, new_price):
     if old_price == 0: 
@@ -49,11 +74,11 @@ def create_card(product, discount, new_price, sizes, main_window):
     manufacturer = product[5]
     total_quantity = product[6]
 
+    full_image_path = get_image_path(image_path)
+    
     if image_path not in IMAGE_CACHE:
-        if image_path is not None and os.path.exists(f"Images/{image_path}"):
-            IMAGE_CACHE[image_path] = QPixmap(f"Images/{image_path}")
-        else:
-            IMAGE_CACHE[image_path] = QPixmap("resources/picture.png")
+        pixmap = QPixmap(full_image_path)
+        IMAGE_CACHE[image_path] = pixmap
 
     img_label = QLabel()
     img_label.setFixedSize(100, 100)
@@ -155,14 +180,15 @@ def create_card(product, discount, new_price, sizes, main_window):
 
 
 class ProductCard(QDialog):
-    def __init__(self, product_id, parent=None):
+    def __init__(self, product_id, parent=None, role_id=None):
         super().__init__(parent)
         self.product_id = product_id
         self.parent_window = parent
+        self.role_id = role_id
         self.db = parent.db if parent else Database()
         
         self.setWindowTitle("Карточка товара")
-        self.resize(400, 600)
+        self.resize(400, 650)
         
         self.setup_ui()
         self.load_product(product_id)
@@ -214,6 +240,13 @@ class ProductCard(QDialog):
         self.quantity_spin.setStyleSheet("padding: 5px; border: 1px solid #CCC; border-radius: 4px;")
         layout.addWidget(self.quantity_spin)
 
+        # Кнопка загрузки изображения (только для Администратора, role_id = 1)
+        if self.role_id == 1:
+            self.load_image_button = QPushButton("Загрузить изображение")
+            self.load_image_button.setStyleSheet("QPushButton { background-color: #1976D2; color: white; padding: 8px; border-radius: 5px; font-weight: bold; margin-top: 5px; }")
+            self.load_image_button.clicked.connect(self.load_image)
+            layout.addWidget(self.load_image_button)
+
         self.add_button = QPushButton("Добавить в корзину")
         self.add_button.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 10px; border-radius: 5px; font-weight: bold; font-size: 16px; margin-top: 10px; }")
         self.add_button.clicked.connect(self.add_selected_to_cart)
@@ -256,7 +289,6 @@ class ProductCard(QDialog):
             finally:
                 self.db.release_connection(conn)
 
-        # ИСПРАВЛЕНИЕ: приводим Decimal к float перед умножением
         old_price_float = float(old_price)
         
         if orders_count == 0:
@@ -280,13 +312,12 @@ class ProductCard(QDialog):
         self.description_label.setText(description if description else "Описание отсутствует")
         self.stock_label.setText(f"В наличии: {total_quantity} шт.")
         
-        if image_path and os.path.exists(f"Images/{image_path}"):
-            pixmap = QPixmap(f"Images/{image_path}")
-        else:
-            pixmap = QPixmap("resources/picture.png")
-            
+        full_image_path = get_image_path(image_path)
+        pixmap = QPixmap(full_image_path)
         if not pixmap.isNull():
             self.image_label.setPixmap(pixmap.scaled(300, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        else:
+            self.image_label.setText("Нет изображения")
         
         self.quantity_spin.setMaximum(max(1, int(total_quantity)))
         
@@ -294,6 +325,71 @@ class ProductCard(QDialog):
             self.add_button.setEnabled(False)
             self.add_button.setText("Нет в наличии")
             self.add_button.setStyleSheet("QPushButton { background-color: #999999; color: white; padding: 10px; border-radius: 5px; font-weight: bold; font-size: 16px; margin-top: 10px; }")
+
+    def load_image(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Выберите изображение", "", "Images (*.png *.jpg *.jpeg)"
+        )
+        if not file_path:
+            return
+
+        test_pixmap = QPixmap(file_path)
+        if test_pixmap.isNull():
+            QMessageBox.warning(self, "Ошибка", "Выбранный файл не является изображением или повреждён.")
+            return
+
+        app_data_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
+        if not app_data_dir:
+            app_data_dir = os.getcwd()
+        images_dir = os.path.join(app_data_dir, "images")
+        if not os.path.exists(images_dir):
+            os.makedirs(images_dir, exist_ok=True)
+
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in ('.png', '.jpg', '.jpeg'):
+            QMessageBox.warning(self, "Ошибка", "Неподдерживаемый формат файла.")
+            return
+        new_filename = f"{uuid.uuid4().hex}{ext}"
+        new_full_path = os.path.join(images_dir, new_filename)
+
+        try:
+            shutil.copy2(file_path, new_full_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось скопировать файл: {e}")
+            return
+
+        conn = self.db.get_connection()
+        if not conn:
+            os.remove(new_full_path)
+            QMessageBox.critical(self, "Ошибка", "Нет подключения к БД")
+            return
+
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE products SET image_path = %s WHERE product_id = %s",
+                (new_filename, self.product_id)
+            )
+            conn.commit()
+            cursor.close()
+        except Exception as e:
+            conn.rollback()
+            os.remove(new_full_path)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при обновлении БД: {e}")
+            return
+        finally:
+            self.db.release_connection(conn)
+
+        pixmap = QPixmap(new_full_path)
+        if not pixmap.isNull():
+            self.image_label.setPixmap(pixmap.scaled(300, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        else:
+            self.image_label.setText("Не удалось загрузить изображение")
+
+        if self.parent_window:
+            self.parent_window.load_products()
+
+        QMessageBox.information(self, "Успех", "Изображение успешно загружено.")
 
     def add_selected_to_cart(self):
         size_id = self.size_combo.currentData()
@@ -363,7 +459,6 @@ class MainWindow(QMainWindow):
 
         self.stacked_widget = QStackedWidget()
 
-        # Страница 0: Каталог
         self.catalog_page = QWidget()
         catalog_layout = QVBoxLayout()
         
@@ -437,7 +532,6 @@ class MainWindow(QMainWindow):
         self.catalog_page.setLayout(catalog_layout)
         self.stacked_widget.addWidget(self.catalog_page)
 
-        # Страница 1 (заглушка)
         self.product_page = QWidget()
         product_layout = QVBoxLayout()
         product_layout.addStretch()
@@ -449,7 +543,6 @@ class MainWindow(QMainWindow):
         self.product_page.setLayout(product_layout)
         self.stacked_widget.addWidget(self.product_page)
 
-        # Страница 2: Заказы
         self.orders_page = QWidget()
         orders_layout = QVBoxLayout()
         
@@ -476,7 +569,7 @@ class MainWindow(QMainWindow):
         self.update_title(0)
 
     def open_product_card(self, product_id):
-        card = ProductCard(product_id, self)
+        card = ProductCard(product_id, self, self.role_id)
         card.exec()
         self.load_products()
 
