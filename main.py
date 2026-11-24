@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout,
                                QWidget, QHBoxLayout, QScrollArea, QPushButton, 
                                QCheckBox, QComboBox, QLineEdit, QStackedWidget, 
                                QSizePolicy, QTableWidget, QTableWidgetItem, 
-                               QHeaderView, QMessageBox, QDialog)
+                               QHeaderView, QMessageBox, QDialog, QSpinBox)
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
@@ -119,13 +119,11 @@ def create_card(product, discount, new_price, sizes, main_window):
     price_box.addWidget(new_price_label)
     price_box.addWidget(discount_label)
 
-    # Кнопка "Подробнее" открывает QDialog (карточку товара)
     details_btn = QPushButton("Подробнее")
     details_btn.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px; font-family: Calibri; }")
     details_btn.clicked.connect(lambda checked=False, pid=product[0]: main_window.open_product_card(pid))
     price_box.addWidget(details_btn)
 
-    # Выпадающий список размеров
     size_combo = QComboBox()
     size_combo.setStyleSheet("""
         QComboBox { background-color: #FFFFFF; color: #000000; padding: 5px; border: 1px solid #CCC; border-radius: 4px; font-family: Calibri; }
@@ -155,57 +153,47 @@ def create_card(product, discount, new_price, sizes, main_window):
 
     return card
 
-# ==========================================
-# ЗАДАНИЕ 1, 2, 3: Класс карточки товара (QDialog)
-# ==========================================
+
 class ProductCard(QDialog):
     def __init__(self, product_id, parent=None):
         super().__init__(parent)
         self.product_id = product_id
+        self.parent_window = parent
         self.db = parent.db if parent else Database()
         
         self.setWindowTitle("Карточка товара")
-        self.resize(400, 500)
+        self.resize(400, 600)
+        
         self.setup_ui()
+        self.load_product(product_id)
 
     def setup_ui(self):
         layout = QVBoxLayout()
         
-        # Получаем данные о товаре из БД
-        query = "SELECT name, description, image_path FROM products WHERE product_id = %s"
-        result = self.db.execute_query(query, (self.product_id,))
-        
-        name, desc, img_path = "Товар", "Нет описания", None
-        if result:
-            name, desc, img_path = result[0][0], result[0][1], result[0][2]
-
-        # ЗАДАНИЕ 2: QLabel для изображения
         self.image_label = QLabel()
         self.image_label.setFixedSize(300, 300)
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        if img_path and os.path.exists(f"Images/{img_path}"):
-            pixmap = QPixmap(f"Images/{img_path}")
-        else:
-            pixmap = QPixmap("resources/picture.png")
-            
-        if not pixmap.isNull():
-            self.image_label.setPixmap(pixmap.scaled(300, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-        layout.addWidget(self.image_label)
+        self.image_label.setStyleSheet("border: 1px solid #ddd; background-color: #fff;")
+        layout.addWidget(self.image_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Наименование
-        self.name_label = QLabel(name)
+        self.name_label = QLabel("Загрузка...")
         self.name_label.setStyleSheet("font-size: 20px; font-weight: bold; color: black;")
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.name_label)
 
-        # Описание
-        self.desc_label = QLabel(desc if desc else "Описание отсутствует")
-        self.desc_label.setWordWrap(True)
-        self.desc_label.setStyleSheet("color: #555; font-size: 14px;")
-        layout.addWidget(self.desc_label)
+        self.price_label = QLabel("")
+        self.price_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.price_label)
 
-        # ЗАДАНИЕ 3: QComboBox для выбора варианта
+        self.description_label = QLabel("")
+        self.description_label.setWordWrap(True)
+        self.description_label.setStyleSheet("color: #555; font-size: 14px;")
+        layout.addWidget(self.description_label)
+
+        self.stock_label = QLabel("")
+        self.stock_label.setStyleSheet("color: black; font-size: 14px;")
+        layout.addWidget(self.stock_label)
+
         layout.addWidget(QLabel("Выберите фасовку:"))
         self.size_combo = QComboBox()
         self.size_combo.setStyleSheet("""
@@ -219,17 +207,98 @@ class ProductCard(QDialog):
                 self.size_combo.addItem(str(s_val), s_id)
         layout.addWidget(self.size_combo)
 
-        # Кнопка добавления (заглушка для РТ 19)
-        add_btn = QPushButton("Добавить в корзину")
-        add_btn.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 10px; border-radius: 5px; font-weight: bold; font-size: 16px; margin-top: 10px; }")
-        add_btn.clicked.connect(self.add_selected_to_cart)
-        layout.addWidget(add_btn)
+        layout.addWidget(QLabel("Количество:"))
+        self.quantity_spin = QSpinBox()
+        self.quantity_spin.setMinimum(1)
+        self.quantity_spin.setMaximum(10)
+        self.quantity_spin.setStyleSheet("padding: 5px; border: 1px solid #CCC; border-radius: 4px;")
+        layout.addWidget(self.quantity_spin)
+
+        self.add_button = QPushButton("Добавить в корзину")
+        self.add_button.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 10px; border-radius: 5px; font-weight: bold; font-size: 16px; margin-top: 10px; }")
+        self.add_button.clicked.connect(self.add_selected_to_cart)
+        layout.addWidget(self.add_button)
 
         self.setLayout(layout)
 
+    def load_product(self, product_id):
+        query = """
+            SELECT p.name, p.price, p.description, p.image_path,
+                   COALESCE(SUM(si.quantity), 0) AS total_quantity
+            FROM products p
+            LEFT JOIN stock_items si ON p.product_id = si.product_id
+            WHERE p.product_id = %s
+            GROUP BY p.product_id, p.name, p.price, p.description, p.image_path
+        """
+        result = self.db.execute_query(query, (product_id,))
+        
+        if not result:
+            QMessageBox.critical(self, "Ошибка", "Товар не найден")
+            return
+            
+        name, old_price, description, image_path, total_quantity = result[0]
+        
+        conn = self.db.get_connection()
+        orders_count = 0
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT COUNT(*) FROM order_items oi
+                    JOIN orders o ON oi.order_id = o.order_id
+                    WHERE oi.product_id = %s AND o.order_date >= CURRENT_DATE - INTERVAL '1 month'
+                """, (product_id,))
+                res = cursor.fetchone()
+                orders_count = res[0] if res else 0
+                cursor.close()
+            except Exception as e:
+                print(f"Ошибка скидки: {e}")
+            finally:
+                self.db.release_connection(conn)
+
+        # ИСПРАВЛЕНИЕ: приводим Decimal к float перед умножением
+        old_price_float = float(old_price)
+        
+        if orders_count == 0:
+            new_price = old_price_float * DISCOUNT_RATE
+            discount_percent = 25
+        else:
+            new_price = old_price_float
+            discount_percent = 0
+
+        self.name_label.setText(name)
+        
+        if discount_percent > 0:
+            self.price_label.setText(
+                f"<s style='color:red; font-size:16px;'>{old_price_float:.2f} ₽</s> "
+                f"<span style='color:black; font-size:22px; font-weight:bold;'>{new_price:.2f} ₽</span> "
+                f"<span style='color:#2E8B57;'>(скидка {discount_percent}%)</span>"
+            )
+        else:
+            self.price_label.setText(f"Цена: {new_price:.2f} ₽")
+            
+        self.description_label.setText(description if description else "Описание отсутствует")
+        self.stock_label.setText(f"В наличии: {total_quantity} шт.")
+        
+        if image_path and os.path.exists(f"Images/{image_path}"):
+            pixmap = QPixmap(f"Images/{image_path}")
+        else:
+            pixmap = QPixmap("resources/picture.png")
+            
+        if not pixmap.isNull():
+            self.image_label.setPixmap(pixmap.scaled(300, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        
+        self.quantity_spin.setMaximum(max(1, int(total_quantity)))
+        
+        if total_quantity == 0:
+            self.add_button.setEnabled(False)
+            self.add_button.setText("Нет в наличии")
+            self.add_button.setStyleSheet("QPushButton { background-color: #999999; color: white; padding: 10px; border-radius: 5px; font-weight: bold; font-size: 16px; margin-top: 10px; }")
+
     def add_selected_to_cart(self):
-        # Временное сообщение до РТ 19
-        QMessageBox.information(self, "В разработке", "Корзина будет подключена в РТ 19")
+        size_id = self.size_combo.currentData()
+        qty = self.quantity_spin.value()
+        QMessageBox.information(self, "В разработке", f"Товар ID {self.product_id} (фасовка {size_id}, кол-во {qty}).\nКорзина будет подключена в РТ 19")
 
 
 class MainWindow(QMainWindow):
@@ -257,7 +326,6 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ========== ШАПКА ==========
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(10, 10, 10, 10)
         
@@ -293,10 +361,9 @@ class MainWindow(QMainWindow):
         header_widget.setFixedHeight(70)
         main_layout.addWidget(header_widget)
 
-        # ========== QSTACKEDWIDGET ==========
         self.stacked_widget = QStackedWidget()
 
-        # --- Страница 0: Каталог ---
+        # Страница 0: Каталог
         self.catalog_page = QWidget()
         catalog_layout = QVBoxLayout()
         
@@ -370,7 +437,7 @@ class MainWindow(QMainWindow):
         self.catalog_page.setLayout(catalog_layout)
         self.stacked_widget.addWidget(self.catalog_page)
 
-        # --- Страница 1: Карточка товара (заглушка, так как теперь используем QDialog) ---
+        # Страница 1 (заглушка)
         self.product_page = QWidget()
         product_layout = QVBoxLayout()
         product_layout.addStretch()
@@ -382,7 +449,7 @@ class MainWindow(QMainWindow):
         self.product_page.setLayout(product_layout)
         self.stacked_widget.addWidget(self.product_page)
 
-        # --- Страница 2: Заказы ---
+        # Страница 2: Заказы
         self.orders_page = QWidget()
         orders_layout = QVBoxLayout()
         
@@ -409,10 +476,9 @@ class MainWindow(QMainWindow):
         self.update_title(0)
 
     def open_product_card(self, product_id):
-        """Открывает карточку товара в отдельном окне (QDialog)."""
         card = ProductCard(product_id, self)
-        card.exec() # Блокирует выполнение до закрытия окна
-        self.load_products() # Обновляем каталог после закрытия
+        card.exec()
+        self.load_products()
 
     def switch_page(self, index):
         if 0 <= index < self.stacked_widget.count():
