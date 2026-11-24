@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout,
                                QWidget, QHBoxLayout, QScrollArea, QPushButton, 
                                QCheckBox, QComboBox, QLineEdit, QStackedWidget, 
                                QSizePolicy, QTableWidget, QTableWidgetItem, 
-                               QHeaderView, QMessageBox)
+                               QHeaderView, QMessageBox, QDialog)
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import Qt
 from database import Database
@@ -45,7 +45,6 @@ def create_card(product, discount, new_price, sizes, main_window):
     card_layout = QHBoxLayout()
     card_layout.setContentsMargins(10, 10, 10, 10)
 
-    # Индексы: 0-id, 1-категория, 2-название, 3-цена, 4-картинка, 5-производитель, 6-остаток
     image_path = product[4]
     manufacturer = product[5]
     total_quantity = product[6]
@@ -120,28 +119,17 @@ def create_card(product, discount, new_price, sizes, main_window):
     price_box.addWidget(new_price_label)
     price_box.addWidget(discount_label)
 
+    # Кнопка "Подробнее" открывает QDialog (карточку товара)
     details_btn = QPushButton("Подробнее")
     details_btn.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; margin-top: 5px; font-family: Calibri; }")
-    details_btn.clicked.connect(lambda: main_window.switch_page(1))
+    details_btn.clicked.connect(lambda checked=False, pid=product[0]: main_window.open_product_card(pid))
     price_box.addWidget(details_btn)
 
-    # Выпадающий список размеров (с принудительно белым фоном и черным текстом)
+    # Выпадающий список размеров
     size_combo = QComboBox()
     size_combo.setStyleSheet("""
-        QComboBox {
-            background-color: #FFFFFF;
-            color: #000000;
-            padding: 5px;
-            border: 1px solid #CCC;
-            border-radius: 4px;
-            font-family: Calibri;
-        }
-        QComboBox QAbstractItemView {
-            background-color: #FFFFFF;
-            color: #000000;
-            selection-background-color: #70B2AF;
-            selection-color: white;
-        }
+        QComboBox { background-color: #FFFFFF; color: #000000; padding: 5px; border: 1px solid #CCC; border-radius: 4px; font-family: Calibri; }
+        QComboBox QAbstractItemView { background-color: #FFFFFF; color: #000000; selection-background-color: #70B2AF; selection-color: white; }
     """)
     for size_id, size_value in sizes:
         size_combo.addItem(str(size_value), size_id)
@@ -166,6 +154,82 @@ def create_card(product, discount, new_price, sizes, main_window):
         card.setStyleSheet("#productCard { background-color: #F9F9F9; border: 1px solid #CCCCCC; border-radius: 8px; } #productCard:hover { background-color: #FFFFFF; border: 2px solid #70B2AF; }")
 
     return card
+
+# ==========================================
+# ЗАДАНИЕ 1, 2, 3: Класс карточки товара (QDialog)
+# ==========================================
+class ProductCard(QDialog):
+    def __init__(self, product_id, parent=None):
+        super().__init__(parent)
+        self.product_id = product_id
+        self.db = parent.db if parent else Database()
+        
+        self.setWindowTitle("Карточка товара")
+        self.resize(400, 500)
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout()
+        
+        # Получаем данные о товаре из БД
+        query = "SELECT name, description, image_path FROM products WHERE product_id = %s"
+        result = self.db.execute_query(query, (self.product_id,))
+        
+        name, desc, img_path = "Товар", "Нет описания", None
+        if result:
+            name, desc, img_path = result[0][0], result[0][1], result[0][2]
+
+        # ЗАДАНИЕ 2: QLabel для изображения
+        self.image_label = QLabel()
+        self.image_label.setFixedSize(300, 300)
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        if img_path and os.path.exists(f"Images/{img_path}"):
+            pixmap = QPixmap(f"Images/{img_path}")
+        else:
+            pixmap = QPixmap("resources/picture.png")
+            
+        if not pixmap.isNull():
+            self.image_label.setPixmap(pixmap.scaled(300, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        layout.addWidget(self.image_label)
+
+        # Наименование
+        self.name_label = QLabel(name)
+        self.name_label.setStyleSheet("font-size: 20px; font-weight: bold; color: black;")
+        self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.name_label)
+
+        # Описание
+        self.desc_label = QLabel(desc if desc else "Описание отсутствует")
+        self.desc_label.setWordWrap(True)
+        self.desc_label.setStyleSheet("color: #555; font-size: 14px;")
+        layout.addWidget(self.desc_label)
+
+        # ЗАДАНИЕ 3: QComboBox для выбора варианта
+        layout.addWidget(QLabel("Выберите фасовку:"))
+        self.size_combo = QComboBox()
+        self.size_combo.setStyleSheet("""
+            QComboBox { background-color: #FFFFFF; color: #000000; padding: 5px; border: 1px solid #CCC; border-radius: 4px; }
+            QComboBox QAbstractItemView { background-color: #FFFFFF; color: #000000; selection-background-color: #70B2AF; selection-color: white; }
+        """)
+        
+        sizes = self.db.execute_query("SELECT size_id, value FROM sizes ORDER BY size_id")
+        if sizes:
+            for s_id, s_val in sizes:
+                self.size_combo.addItem(str(s_val), s_id)
+        layout.addWidget(self.size_combo)
+
+        # Кнопка добавления (заглушка для РТ 19)
+        add_btn = QPushButton("Добавить в корзину")
+        add_btn.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 10px; border-radius: 5px; font-weight: bold; font-size: 16px; margin-top: 10px; }")
+        add_btn.clicked.connect(self.add_selected_to_cart)
+        layout.addWidget(add_btn)
+
+        self.setLayout(layout)
+
+    def add_selected_to_cart(self):
+        # Временное сообщение до РТ 19
+        QMessageBox.information(self, "В разработке", "Корзина будет подключена в РТ 19")
 
 
 class MainWindow(QMainWindow):
@@ -306,7 +370,7 @@ class MainWindow(QMainWindow):
         self.catalog_page.setLayout(catalog_layout)
         self.stacked_widget.addWidget(self.catalog_page)
 
-        # --- Страница 1: Карточка товара ---
+        # --- Страница 1: Карточка товара (заглушка, так как теперь используем QDialog) ---
         self.product_page = QWidget()
         product_layout = QVBoxLayout()
         product_layout.addStretch()
@@ -314,10 +378,6 @@ class MainWindow(QMainWindow):
         lbl_product.setStyleSheet("font-size: 24px; color: black; font-weight: bold;")
         lbl_product.setAlignment(Qt.AlignmentFlag.AlignCenter)
         product_layout.addWidget(lbl_product)
-        self.to_orders_btn = QPushButton("Перейти к заказам")
-        self.to_orders_btn.clicked.connect(lambda: self.switch_page(2))
-        self.to_orders_btn.setStyleSheet("padding: 10px; font-size: 16px; background-color: #70B2AF; color: white; border-radius: 5px;")
-        product_layout.addWidget(self.to_orders_btn)
         product_layout.addStretch()
         self.product_page.setLayout(product_layout)
         self.stacked_widget.addWidget(self.product_page)
@@ -347,6 +407,12 @@ class MainWindow(QMainWindow):
 
         self.stacked_widget.setCurrentIndex(0)
         self.update_title(0)
+
+    def open_product_card(self, product_id):
+        """Открывает карточку товара в отдельном окне (QDialog)."""
+        card = ProductCard(product_id, self)
+        card.exec() # Блокирует выполнение до закрытия окна
+        self.load_products() # Обновляем каталог после закрытия
 
     def switch_page(self, index):
         if 0 <= index < self.stacked_widget.count():
