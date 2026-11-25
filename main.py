@@ -294,7 +294,10 @@ class ProductCard(QDialog):
             self.image_label.setPixmap(pixmap.scaled(300, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         else:
             self.image_label.setText("Нет изображения")
+        
+        # --- ИСПРАВЛЕННАЯ СТРОКА ---
         self.quantity_spin.setMaximum(max(1, int(total_quantity)))
+        
         if total_quantity == 0:
             self.add_button.setEnabled(False)
             self.add_button.setText("Нет в наличии")
@@ -538,7 +541,6 @@ class MainWindow(QMainWindow):
         self.remove_from_cart_btn.clicked.connect(self.remove_from_cart)
         cart_buttons_layout.addWidget(self.remove_from_cart_btn)
 
-        # Кнопка подтверждения заказа (вызывает confirm_order)
         self.checkout_btn = QPushButton("Подтвердить заказ")
         self.checkout_btn.setStyleSheet("background-color: #70B2AF; color: white; padding: 8px; border-radius: 5px;")
         self.checkout_btn.clicked.connect(self.confirm_order)
@@ -617,7 +619,7 @@ class MainWindow(QMainWindow):
         self.total_label.setText(f"Итого: {total:.2f} ₽")
 
     def confirm_order(self):
-        """Сохраняет заказ и его состав в БД (Задания 1-3)."""
+        """Сохраняет заказ, проверяет остатки и обновляет склад."""
         if self.cart_table.rowCount() == 0:
             QMessageBox.warning(self, "Ошибка", "Корзина пуста")
             return
@@ -633,7 +635,32 @@ class MainWindow(QMainWindow):
         try:
             cursor = conn.cursor()
             
-            # 1. Создаём заказ в таблице orders со статусом "Новый"
+            # --- ПРОВЕРКА ОСТАТКОВ ПЕРЕД ОФОРМЛЕНИЕМ ---
+            for row in range(self.cart_table.rowCount()):
+                pid_item = self.cart_table.item(row, 4)
+                qty_item = self.cart_table.item(row, 1)
+                if pid_item is None or qty_item is None:
+                    continue
+                
+                product_id = int(pid_item.text())
+                quantity = int(qty_item.text())
+                
+                cursor.execute(
+                    "SELECT COALESCE(SUM(quantity), 0) FROM stock_items WHERE product_id = %s",
+                    (product_id,)
+                )
+                stock_res = cursor.fetchone()
+                stock = stock_res[0] if stock_res else 0
+                
+                if stock < quantity:
+                    QMessageBox.critical(
+                        self, "Ошибка", 
+                        f"Недостаточно товара (ID {product_id}) на складе. Доступно: {stock}, запрошено: {quantity}"
+                    )
+                    conn.rollback()
+                    return
+            
+            # 1. Создаём заказ
             cursor.execute(
                 "INSERT INTO orders (order_date, user_id, status) VALUES (%s, %s, %s) RETURNING order_id",
                 (date.today(), self.user_id, "Новый")
@@ -644,7 +671,7 @@ class MainWindow(QMainWindow):
                 return
             order_id = order_res[0]
             
-            # 2. Добавляем каждую позицию из корзины в order_items
+            # 2. Добавляем позиции и обновляем остатки
             for row in range(self.cart_table.rowCount()):
                 qty_item = self.cart_table.item(row, 1)
                 price_item = self.cart_table.item(row, 2)
@@ -661,8 +688,22 @@ class MainWindow(QMainWindow):
                     "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (%s, %s, %s, %s)",
                     (order_id, product_id, quantity, price)
                 )
+                
+                # --- ОБНОВЛЕНИЕ ОСТАТКОВ НА СКЛАДЕ ---
+                cursor.execute(
+                    "UPDATE stock_items SET quantity = quantity - %s WHERE product_id = %s",
+                    (quantity, product_id)
+                )
+                
+                if cursor.rowcount == 0:
+                    QMessageBox.warning(
+                        self, "Ошибка", 
+                        f"Нет остатков для товара (ID {product_id})"
+                    )
+                    conn.rollback()
+                    return
             
-            # 3. Фиксируем изменения
+            # 3. COMMIT
             conn.commit()
             cursor.close()
             
@@ -671,7 +712,6 @@ class MainWindow(QMainWindow):
             self.update_total()
             
         except Exception as e:
-            # При ошибке откатываем все изменения
             conn.rollback()
             QMessageBox.critical(self, "Ошибка", f"Ошибка при сохранении заказа: {e}")
         finally:
