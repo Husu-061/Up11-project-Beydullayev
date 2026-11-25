@@ -3,6 +3,7 @@ import sys
 import shutil
 import uuid
 from datetime import date
+import psycopg2.errors
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, 
                                QWidget, QHBoxLayout, QScrollArea, QPushButton, 
                                QCheckBox, QComboBox, QLineEdit, QStackedWidget, 
@@ -174,7 +175,7 @@ class ProductCard(QDialog):
         self.db = parent.db if parent else Database()
         self.current_price = 0.0
         self.setWindowTitle("Карточка товара")
-        self.resize(400, 650)
+        self.resize(400, 700)
         self.setup_ui()
         self.load_product(product_id)
 
@@ -223,11 +224,18 @@ class ProductCard(QDialog):
         self.quantity_spin.setStyleSheet("padding: 5px; border: 1px solid #CCC; border-radius: 4px;")
         layout.addWidget(self.quantity_spin)
 
+        # Кнопки только для администратора
         if self.role_id == 1:
             self.load_image_button = QPushButton("Загрузить изображение")
             self.load_image_button.setStyleSheet("QPushButton { background-color: #1976D2; color: white; padding: 8px; border-radius: 5px; font-weight: bold; margin-top: 5px; }")
             self.load_image_button.clicked.connect(self.load_image)
             layout.addWidget(self.load_image_button)
+
+            # ЗАДАНИЕ 1.1: Кнопка «Удалить»
+            self.delete_button = QPushButton("Удалить товар")
+            self.delete_button.setStyleSheet("QPushButton { background-color: #D32F2F; color: white; padding: 8px; border-radius: 5px; font-weight: bold; margin-top: 5px; }")
+            self.delete_button.clicked.connect(self.delete_product)
+            layout.addWidget(self.delete_button)
 
         self.add_button = QPushButton("Добавить в корзину")
         self.add_button.setStyleSheet("QPushButton { background-color: #70B2AF; color: white; padding: 10px; border-radius: 5px; font-weight: bold; font-size: 16px; margin-top: 10px; }")
@@ -295,7 +303,6 @@ class ProductCard(QDialog):
         else:
             self.image_label.setText("Нет изображения")
         
-        # --- ИСПРАВЛЕННАЯ СТРОКА ---
         self.quantity_spin.setMaximum(max(1, int(total_quantity)))
         
         if total_quantity == 0:
@@ -353,6 +360,50 @@ class ProductCard(QDialog):
         if self.parent_window:
             self.parent_window.load_products()
         QMessageBox.information(self, "Успех", "Изображение успешно загружено.")
+
+    def delete_product(self):
+        """ЗАДАНИЕ 2.1: Удаляет товар из БД."""
+        reply = QMessageBox.question(
+            self, "Удаление товара",
+            f"Вы уверены, что хотите удалить товар «{self.name_label.text()}»?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        conn = self.db.get_connection()
+        if not conn:
+            QMessageBox.critical(self, "Ошибка", "Нет подключения к БД")
+            return
+
+        try:
+            cursor = conn.cursor()
+            
+            # 1. Сначала удаляем остатки на складе (это не история, это можно удалять)
+            cursor.execute("DELETE FROM stock_items WHERE product_id = %s", (self.product_id,))
+            
+            # 2. Пытаемся удалить сам товар
+            cursor.execute("DELETE FROM products WHERE product_id = %s", (self.product_id,))
+            
+            conn.commit()
+            cursor.close()
+            QMessageBox.information(self, "Успех", "Товар успешно удалён")
+            self.accept()
+            if self.parent_window:
+                self.parent_window.load_products()
+                
+        except psycopg2.errors.ForeignKeyViolation:
+            conn.rollback()
+            # Если мы попали сюда, значит, товар есть в order_items
+            QMessageBox.critical(
+                self, "Ошибка",
+                "Товар нельзя удалить: он есть в заказах. Сначала удалите заказы, содержащие этот товар."
+            )
+        except Exception as e:
+            conn.rollback()
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при удалении: {e}")
+        finally:
+            self.db.release_connection(conn)
 
     def add_selected_to_cart(self):
         size_id = self.size_combo.currentData()
@@ -635,7 +686,7 @@ class MainWindow(QMainWindow):
         try:
             cursor = conn.cursor()
             
-            # --- ПРОВЕРКА ОСТАТКОВ ПЕРЕД ОФОРМЛЕНИЕМ ---
+            # Проверка остатков
             for row in range(self.cart_table.rowCount()):
                 pid_item = self.cart_table.item(row, 4)
                 qty_item = self.cart_table.item(row, 1)
@@ -660,7 +711,7 @@ class MainWindow(QMainWindow):
                     conn.rollback()
                     return
             
-            # 1. Создаём заказ
+            # Создаём заказ
             cursor.execute(
                 "INSERT INTO orders (order_date, user_id, status) VALUES (%s, %s, %s) RETURNING order_id",
                 (date.today(), self.user_id, "Новый")
@@ -671,7 +722,7 @@ class MainWindow(QMainWindow):
                 return
             order_id = order_res[0]
             
-            # 2. Добавляем позиции и обновляем остатки
+            # Позиции заказа + списание остатков
             for row in range(self.cart_table.rowCount()):
                 qty_item = self.cart_table.item(row, 1)
                 price_item = self.cart_table.item(row, 2)
@@ -689,7 +740,6 @@ class MainWindow(QMainWindow):
                     (order_id, product_id, quantity, price)
                 )
                 
-                # --- ОБНОВЛЕНИЕ ОСТАТКОВ НА СКЛАДЕ ---
                 cursor.execute(
                     "UPDATE stock_items SET quantity = quantity - %s WHERE product_id = %s",
                     (quantity, product_id)
@@ -703,7 +753,6 @@ class MainWindow(QMainWindow):
                     conn.rollback()
                     return
             
-            # 3. COMMIT
             conn.commit()
             cursor.close()
             
