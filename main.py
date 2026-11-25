@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 import uuid
+from datetime import date
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, 
                                QWidget, QHBoxLayout, QScrollArea, QPushButton, 
                                QCheckBox, QComboBox, QLineEdit, QStackedWidget, 
@@ -517,7 +518,6 @@ class MainWindow(QMainWindow):
         self.total_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         cart_layout.addWidget(self.total_label)
 
-        # Блок изменения количества
         change_layout = QHBoxLayout()
         change_layout.addWidget(QLabel("Новое количество:"))
         self.change_quantity_spin = QSpinBox()
@@ -538,9 +538,10 @@ class MainWindow(QMainWindow):
         self.remove_from_cart_btn.clicked.connect(self.remove_from_cart)
         cart_buttons_layout.addWidget(self.remove_from_cart_btn)
 
-        self.checkout_btn = QPushButton("Оформить заказ из корзины")
+        # Кнопка подтверждения заказа (вызывает confirm_order)
+        self.checkout_btn = QPushButton("Подтвердить заказ")
         self.checkout_btn.setStyleSheet("background-color: #70B2AF; color: white; padding: 8px; border-radius: 5px;")
-        self.checkout_btn.clicked.connect(self.checkout_from_cart)
+        self.checkout_btn.clicked.connect(self.confirm_order)
         cart_buttons_layout.addWidget(self.checkout_btn)
         cart_layout.addLayout(cart_buttons_layout)
 
@@ -583,19 +584,15 @@ class MainWindow(QMainWindow):
         self.update_total()
 
     def change_quantity(self):
-        """Изменяет количество товара в выбранной строке корзины."""
         row = self.cart_table.currentRow()
         if row < 0:
             QMessageBox.warning(self, "Ошибка", "Выберите строку для изменения")
             return
-        
         new_quantity = self.change_quantity_spin.value()
-        
         price_item = self.cart_table.item(row, 2)
         if price_item is None:
             return
         price = float(price_item.text())
-        
         self.cart_table.setItem(row, 1, QTableWidgetItem(str(new_quantity)))
         self.cart_table.setItem(row, 3, QTableWidgetItem(str(new_quantity * price)))
         self.update_total()
@@ -619,10 +616,12 @@ class MainWindow(QMainWindow):
                     pass
         self.total_label.setText(f"Итого: {total:.2f} ₽")
 
-    def checkout_from_cart(self):
+    def confirm_order(self):
+        """Сохраняет заказ и его состав в БД (Задания 1-3)."""
         if self.cart_table.rowCount() == 0:
             QMessageBox.warning(self, "Ошибка", "Корзина пуста")
             return
+        
         if not self.user_id:
             QMessageBox.warning(self, "Ошибка", "Пользователь не авторизован")
             return
@@ -633,9 +632,11 @@ class MainWindow(QMainWindow):
 
         try:
             cursor = conn.cursor()
+            
+            # 1. Создаём заказ в таблице orders со статусом "Новый"
             cursor.execute(
-                "INSERT INTO orders (order_date, user_id) VALUES (CURRENT_DATE, %s) RETURNING order_id",
-                (self.user_id,)
+                "INSERT INTO orders (order_date, user_id, status) VALUES (%s, %s, %s) RETURNING order_id",
+                (date.today(), self.user_id, "Новый")
             )
             order_res = cursor.fetchone()
             if order_res is None:
@@ -643,6 +644,7 @@ class MainWindow(QMainWindow):
                 return
             order_id = order_res[0]
             
+            # 2. Добавляем каждую позицию из корзины в order_items
             for row in range(self.cart_table.rowCount()):
                 qty_item = self.cart_table.item(row, 1)
                 price_item = self.cart_table.item(row, 2)
@@ -651,26 +653,27 @@ class MainWindow(QMainWindow):
                 if qty_item is None or price_item is None or pid_item is None:
                     continue
                 
-                qty = int(qty_item.text())
+                quantity = int(qty_item.text())
                 price = float(price_item.text())
                 product_id = int(pid_item.text())
                 
-                cursor.execute("SELECT size_id FROM sizes LIMIT 1")
-                size_res = cursor.fetchone()
-                size_id = size_res[0] if size_res else 1
-                
                 cursor.execute(
-                    "INSERT INTO order_items (order_id, product_id, size_id, quantity, price) VALUES (%s, %s, %s, %s, %s)",
-                    (order_id, product_id, size_id, qty, price)
+                    "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (%s, %s, %s, %s)",
+                    (order_id, product_id, quantity, price)
                 )
+            
+            # 3. Фиксируем изменения
             conn.commit()
             cursor.close()
+            
             QMessageBox.information(self, "Успех", f"Заказ №{order_id} успешно оформлен!")
             self.cart_table.setRowCount(0)
             self.update_total()
+            
         except Exception as e:
+            # При ошибке откатываем все изменения
             conn.rollback()
-            QMessageBox.critical(self, "Ошибка", f"Ошибка при оформлении заказа: {e}")
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при сохранении заказа: {e}")
         finally:
             self.db.release_connection(conn)
 
